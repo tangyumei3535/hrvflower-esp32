@@ -1,0 +1,5 @@
+board: m5_AtomS3R
+chip: esp32s3
+version: 1.0.0
+description: "M5Stack AtomS3R 128x128 GC9107 + button GPIO41"
+manufacturer: "M5STACK"

@@ -1,0 +1,12 @@
+{
+    "target": "esp32c5",
+    "board": "esp_SensairShuttle",
+    "board_path": "boards/espressif",
+    "description": "ESP-SensairShuttle — 1.83\" LCD, ILI9341 + CST816S touch",
+    "builds": [
+        {
+            "name": "esp-sensairshuttle",
+            "sdkconfig_append": []
+        }
+    ]
+}

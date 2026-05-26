@@ -1,0 +1,73 @@
+menu "HRV Emotion Flower"
+
+    config HRV_WIFI_SSID
+        string "Wi-Fi SSID"
+        default "my_wifi"
+        help
+            SSID of the Wi-Fi network where the receiver is deployed.
+
+    config HRV_WIFI_PASSWORD
+        string "Wi-Fi Password"
+        default ""
+        help
+            Password for the destination Wi-Fi network.
+
+    config BEMFA_PRIVATE_KEY
+        string "Bemfa private key (UID)"
+        default ""
+        help
+            Your Bemfa cloud private key (UID). Used in HTTP POST uid field.
+            In single-device mode, also used as MQTT client_id.
+
+    choice BEMFA_MQTT_AUTH_MODE
+        prompt "Bemfa MQTT authentication mode"
+        default BEMFA_MQTT_AUTH_UID
+        help
+            Bemfa mode 1: client_id must equal UID (one board per UID).
+            Bemfa mode 2: unique client_id + AppID/secretKey (multi-device).
+
+        config BEMFA_MQTT_AUTH_UID
+            bool "UID as client_id (single device)"
+            help
+                Standard Bemfa auth. Only one board can hold an MQTT session
+                per UID; a second board with the same UID will kick the first.
+
+        config BEMFA_MQTT_AUTH_APPKEY
+            bool "AppID + secretKey (multi-device)"
+            help
+                Unique client_id per board (Wi-Fi MAC) with username=AppID and
+                password=secretKey. Multiple boards can subscribe to the same topic.
+                Generate credentials via Bemfa API (see help for App ID field).
+
+    endchoice
+
+    config BEMFA_MQTT_APP_ID
+        string "Bemfa MQTT App ID"
+        depends on BEMFA_MQTT_AUTH_APPKEY
+        default ""
+        help
+            AppID for Bemfa auth mode 2. Generate with:
+            curl -X POST https://pro.bemfa.com/vs/web/v1/userSecretKey \\
+              -H "Content-Type: application/json" \\
+              -d '{"openID":"<your UID>"}'
+
+    config BEMFA_MQTT_SECRET_KEY
+        string "Bemfa MQTT secret key"
+        depends on BEMFA_MQTT_AUTH_APPKEY
+        default ""
+        help
+            secretKey paired with BEMFA_MQTT_APP_ID (same API call as App ID).
+
+    config BEMFA_MQTT_TOPIC
+        string "Bemfa MQTT topic name"
+        default "hrv001"
+        help
+            Topic created in Bemfa console. iOS Shortcut should POST to this topic.
+
+    config BEMFA_MQTT_BROKER_URI
+        string "MQTT broker URI"
+        default "mqtt://bemfa.com:9501"
+        help
+            Bemfa MQTT broker. Plain TCP port 9501 per official documentation.
+
+endmenu

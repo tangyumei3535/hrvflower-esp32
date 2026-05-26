@@ -1,0 +1,12 @@
+{
+    "target": "esp32s3",
+    "board": "m5_AtomS3R",
+    "board_path": "boards/m5stack",
+    "description": "M5Stack AtomS3R — 128x128 GC9107 (gc9a01 driver) + button (GPIO41)",
+    "builds": [
+        {
+            "name": "m5-atoms3r",
+            "sdkconfig_append": []
+        }
+    ]
+}

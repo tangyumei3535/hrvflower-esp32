@@ -1,0 +1,23 @@
+board: m5_AtomS3R
+chip: esp32s3
+version: 1.0.0
+peripherals:
+  # LP5562 backlight — M5 pin map: SYS_SDA=G45, SYS_SCL=G0
+  - name: i2c_sys
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 45
+        scl: 0
+
+  - name: spi_display
+    type: spi
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI3_HOST
+        data0_io_num: 21
+        sclk_io_num: 15
+        max_transfer_sz: 32768

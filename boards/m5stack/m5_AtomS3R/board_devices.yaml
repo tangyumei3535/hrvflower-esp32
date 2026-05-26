@@ -1,0 +1,44 @@
+board: m5_AtomS3R
+chip: esp32s3
+version: 1.0.0
+devices:
+  # LP5562 backlight on i2c_sys — init before display_lcd.
+  - name: display_backlight
+    chip: lp5562
+    type: custom
+    version: default
+    config:
+      i2c_address: 0x30
+      i2c_frequency: 400000
+      brightness: 255
+    peripherals:
+      - name: i2c_sys
+
+  - name: display_lcd
+    chip: gc9a01
+    type: display_lcd
+    sub_type: spi
+    version: default
+    dependencies:
+      - espressif/esp_lcd_gc9a01: "*"
+    config:
+      mirror_x: false
+      mirror_y: false
+      swap_xy: false
+      x_max: 128
+      y_max: 128
+      io_spi_config:
+        cs_gpio_num: 14
+        dc_gpio_num: 42
+        spi_mode: 0
+        pclk_hz: 40000000
+        flags:
+          sio_mode: true
+
+      lcd_panel_config:
+        reset_gpio_num: 48
+        rgb_ele_order: "LCD_RGB_ELEMENT_ORDER_BGR"
+        data_endian: "LCD_RGB_DATA_ENDIAN_LITTLE"
+
+    peripherals:
+      - name: spi_display
