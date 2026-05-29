@@ -1,16 +1,17 @@
 menu "HRV Emotion Flower"
 
     config HRV_WIFI_SSID
-        string "Wi-Fi SSID"
-        default "my_wifi"
-        help
-            SSID of the Wi-Fi network where the receiver is deployed.
-
-    config HRV_WIFI_PASSWORD
-        string "Wi-Fi Password"
+        string "Default Wi-Fi SSID (optional seed)"
         default ""
         help
-            Password for the destination Wi-Fi network.
+            If NVS has no saved networks, this SSID/password pair is written once
+            on first boot. Leave empty to force captive-portal setup instead.
+
+    config HRV_WIFI_PASSWORD
+        string "Default Wi-Fi password"
+        default ""
+        help
+            Password paired with HRV_WIFI_SSID for the one-time NVS seed.
 
     config BEMFA_PRIVATE_KEY
         string "Bemfa private key (UID)"

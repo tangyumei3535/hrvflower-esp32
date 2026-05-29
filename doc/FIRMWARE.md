@@ -11,12 +11,14 @@ Related: [README.md](../README.md) · [main/Kconfig.projbuild](../main/Kconfig.p
 
 ## 1. Future development (roadmap)
 
-### 1.1 On-device Wi-Fi provisioning
+### 1.1 On-device Wi-Fi provisioning ✅
 
-- [ ] **Issue**: garbled screen when Wi-Fi is down
-- [ ] **Goal**: on-device Wi-Fi setup (SSID/password or SoftAP provisioning)
-- [ ] **Expected**: credentials in NVS, auto-reconnect on boot; guide screen while offline
-- [ ] **Touches**: `main/wifi_connect.cpp`, LVGL provisioning UI, NVS
+- [x] **Issue**: garbled screen when Wi-Fi is down
+- [x] **Goal**: on-device Wi-Fi setup (SSID/password or SoftAP provisioning)
+- [x] **Expected**: credentials in NVS, auto-reconnect on boot; guide screen while offline
+- [x] **Touches**: `main/wifi_connect.cpp`, `components/esp-wifi-connect/`, LVGL provisioning UI (`hrv_ui_provisioning_*`), NVS `wifi` namespace
+
+**Done (2026-05-27)**: NVS STA first (60s timeout) → `HRVFlower-XXXX` SoftAP + `http://192.168.4.1` on failure; on-screen hotspot name and breathing animation; menuconfig SSID seeds NVS only when empty.
 
 ### 1.2 Low power + periodic NVS persistence
 
@@ -67,7 +69,7 @@ Related: [README.md](../README.md) · [main/Kconfig.projbuild](../main/Kconfig.p
 
 | Feature | Notes |
 |---------|-------|
-| Wi-Fi STA | Auto-reconnect (20 retries) |
+| Wi-Fi STA | NVS credentials + boot captive portal; runtime disconnect uses background reconnect |
 | Bemfa MQTT | Default `mqtt://bemfa.com:9501`; UID single-device or AppID multi-device |
 | Topic subscribe | Default `hrv001` (`BEMFA_MQTT_TOPIC` configurable) |
 | JSON → UI | `drawInterface()` **only** on valid MQTT payload |
@@ -83,10 +85,9 @@ Related: [README.md](../README.md) · [main/Kconfig.projbuild](../main/Kconfig.p
 | Bemfa account & topic | User must register |
 | Touch / IMU / voice | Not used in this demo; IMU rotate → §1.5 |
 | Offline / MQTT status UI | No “waiting for push” indicator |
-| Garbled screen when offline | Needs provisioning UI (§1.1) |
 | Retain last frame on boot | Not handled |
 | MQTT TLS (9503) | Plain 9501 only |
-| OTA / provisioning / NVS / ESP32-initiated requests / BLE | Roadmap §1 |
+| OTA / ESP32-initiated requests / BLE | Roadmap §1 |
 
 ### 2.3 Typical behavior after flash
 
@@ -111,7 +112,7 @@ idf.py -p <PORT> monitor
 | [main/main.cpp](../main/main.cpp) | Boot: board, Wi-Fi, display, MQTT |
 | [main/mqtt_hrv.cpp](../main/mqtt_hrv.cpp) | Subscribe, parse, trigger UI |
 | [main/hrv_ui.cpp](../main/hrv_ui.cpp) | UI and flower stages |
-| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi STA |
+| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi: NVS STA, SoftAP provisioning, provisioning screen |
 | [main/display.cpp](../main/display.cpp) | LCD + LVGL |
 | [main/Kconfig.projbuild](../main/Kconfig.projbuild) | Wi-Fi / Bemfa Kconfig |
 
@@ -121,4 +122,5 @@ idf.py -p <PORT> monitor
 
 | Date | Notes |
 |------|-------|
+| 2026-05-27 | §1.1 Wi-Fi provisioning (captive portal + LVGL guide) implemented |
 | 2026-05-26 | Split from legacy integration doc |

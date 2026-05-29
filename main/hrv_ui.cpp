@@ -28,6 +28,8 @@ static int s_bottom_bar_h = 16;
 static float s_flower_scale = 1.0f;
 
 static lv_obj_t *s_root = nullptr;
+static lv_obj_t *s_prov_root = nullptr;
+static lv_obj_t *s_prov_glow = nullptr;
 static lv_obj_t *s_flower_root = nullptr;
 static lv_obj_t *s_lbl_weather = nullptr;
 static lv_obj_t *s_lbl_time = nullptr;
@@ -224,8 +226,98 @@ static void update_standard_labels(const hrv_status_t *status)
     lv_label_set_text(s_lbl_hrv, hrv_line);
 }
 
+static void prov_breath_anim_cb(void *var, int32_t v)
+{
+    lv_obj_set_style_bg_opa(static_cast<lv_obj_t *>(var), (lv_opa_t)v, 0);
+}
+
+static void prov_breath_anim(void *obj, int32_t start, int32_t end)
+{
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, obj);
+    lv_anim_set_values(&a, start, end);
+    lv_anim_set_duration(&a, 1400);
+    lv_anim_set_playback_duration(&a, 1400);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_exec_cb(&a, prov_breath_anim_cb);
+    lv_anim_start(&a);
+}
+
+void hrv_ui_provisioning_end(void)
+{
+    if (s_prov_root) {
+        lv_obj_delete(s_prov_root);
+        s_prov_root = nullptr;
+        s_prov_glow = nullptr;
+    }
+}
+
+void hrv_ui_provisioning_begin(const char *ap_ssid, const char *web_url)
+{
+    hrv_ui_provisioning_end();
+
+    display_info_t info = {};
+    display_get_info(&info);
+    const int w = info.width > 0 ? info.width : 128;
+    const int h = info.height > 0 ? info.height : 128;
+    const bool compact = (w <= COMPACT_SCREEN_MAX && h <= COMPACT_SCREEN_MAX);
+    const lv_font_t *title_font = compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14;
+    const lv_font_t *body_font = compact ? &lv_font_montserrat_10 : &lv_font_montserrat_12;
+    const int glow_size = compact ? 36 : 56;
+
+    s_prov_root = lv_obj_create(lv_scr_act());
+    lv_obj_remove_style_all(s_prov_root);
+    lv_obj_set_size(s_prov_root, w, h);
+    lv_obj_set_style_bg_color(s_prov_root, color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(s_prov_root, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(s_prov_root, LV_OBJ_FLAG_SCROLLABLE);
+
+    s_prov_glow = lv_obj_create(s_prov_root);
+    lv_obj_remove_style_all(s_prov_glow);
+    lv_obj_set_size(s_prov_glow, glow_size, glow_size);
+    lv_obj_set_style_radius(s_prov_glow, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(s_prov_glow, color_hex(0xFF6D00), 0);
+    lv_obj_set_style_bg_opa(s_prov_glow, LV_OPA_40, 0);
+    lv_obj_align(s_prov_glow, LV_ALIGN_CENTER, 0, compact ? -22 : -28);
+    prov_breath_anim(s_prov_glow, LV_OPA_30, LV_OPA_COVER);
+
+    lv_obj_t *title = lv_label_create(s_prov_root);
+    lv_label_set_text(title, "Wi-Fi Setup");
+    lv_obj_set_style_text_color(title, color_hex(0xE0E0E0), 0);
+    lv_obj_set_style_text_font(title, title_font, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, compact ? 6 : 10);
+
+    lv_obj_t *status = lv_label_create(s_prov_root);
+    lv_label_set_text(status, "Provisioning...");
+    lv_obj_set_style_text_color(status, color_hex(0x9E9E9E), 0);
+    lv_obj_set_style_text_font(status, body_font, 0);
+    lv_obj_align(status, LV_ALIGN_CENTER, 0, compact ? 22 : 32);
+
+    char ap_line[64];
+    snprintf(ap_line, sizeof(ap_line), "Hotspot: %s", ap_ssid && ap_ssid[0] ? ap_ssid : "--");
+    lv_obj_t *ap_lbl = lv_label_create(s_prov_root);
+    lv_label_set_text(ap_lbl, ap_line);
+    lv_obj_set_style_text_color(ap_lbl, color_hex(0xFF9100), 0);
+    lv_obj_set_style_text_font(ap_lbl, body_font, 0);
+    lv_obj_set_width(ap_lbl, w - 8);
+    lv_label_set_long_mode(ap_lbl, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(ap_lbl, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(ap_lbl, LV_ALIGN_CENTER, 0, compact ? 38 : 52);
+
+    char url_line[48];
+    snprintf(url_line, sizeof(url_line), "%s", web_url && web_url[0] ? web_url : "http://192.168.4.1");
+    lv_obj_t *url_lbl = lv_label_create(s_prov_root);
+    lv_label_set_text(url_lbl, url_line);
+    lv_obj_set_style_text_color(url_lbl, color_hex(0x757575), 0);
+    lv_obj_set_style_text_font(url_lbl, body_font, 0);
+    lv_obj_align(url_lbl, LV_ALIGN_BOTTOM_MID, 0, compact ? -4 : -8);
+}
+
 void hrv_ui_init(void)
 {
+    hrv_ui_provisioning_end();
+
     display_info_t info = {};
     display_get_info(&info);
     s_screen_w = info.width > 0 ? info.width : s_screen_w;

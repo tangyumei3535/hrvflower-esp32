@@ -6,91 +6,285 @@
 #include "wifi_connect.hpp"
 
 #include <cstring>
+#include <string>
 
-#include "esp_check.h"
-#include "esp_event.h"
+#include "display.hpp"
 #include "esp_log.h"
-#include "esp_netif.h"
-#include "esp_wifi.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
-#include "nvs_flash.h"
+#include "freertos/queue.h"
+#include "hrv_ui.hpp"
+#include "ssid_manager.h"
+#include "wifi_manager.h"
 
 static const char *TAG = "wifi";
 
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
+static constexpr int CONNECT_TIMEOUT_SEC = 60;
+static constexpr int WIFI_UI_TASK_STACK = 4096;
+
+#define WIFI_EVT_CONNECTED       BIT0
+#define WIFI_EVT_CONFIG_EXIT     BIT1
+#define WIFI_EVT_CONNECT_TIMEOUT BIT2
+
+enum class WifiUiCmd : uint8_t {
+    ProvShow,
+    ProvHide,
+};
+
+struct WifiUiMsg {
+    WifiUiCmd cmd;
+    char ap_ssid[33];
+    char web_url[64];
+};
 
 static EventGroupHandle_t s_wifi_events;
-static int s_retry_count;
+static esp_timer_handle_t s_connect_timer;
+static QueueHandle_t s_ui_queue;
 static bool s_connected;
+static bool s_display_ready;
+static bool s_ui_task_started;
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+static void wifi_ui_task(void *arg)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        s_connected = false;
-        if (s_retry_count < 20) {
-            esp_wifi_connect();
-            s_retry_count++;
-            ESP_LOGW(TAG, "Retry connect to AP (%d/20)", s_retry_count);
-        } else {
-            xEventGroupSetBits(s_wifi_events, WIFI_FAIL_BIT);
+    (void)arg;
+    WifiUiMsg msg;
+    for (;;) {
+        if (xQueueReceive(s_ui_queue, &msg, portMAX_DELAY) != pdTRUE) {
+            continue;
         }
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-        ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_count = 0;
+        if (!s_display_ready) {
+            continue;
+        }
+        if (!display_lock(-1)) {
+            ESP_LOGW(TAG, "LVGL lock timeout in wifi_ui task");
+            continue;
+        }
+        if (msg.cmd == WifiUiCmd::ProvShow) {
+            hrv_ui_provisioning_begin(msg.ap_ssid, msg.web_url);
+        } else {
+            hrv_ui_provisioning_end();
+        }
+        display_unlock();
+    }
+}
+
+static void ensure_wifi_ui_task(void)
+{
+    if (s_ui_task_started) {
+        return;
+    }
+    s_ui_queue = xQueueCreate(4, sizeof(WifiUiMsg));
+    if (!s_ui_queue) {
+        ESP_LOGE(TAG, "Failed to create UI queue");
+        return;
+    }
+    if (xTaskCreate(wifi_ui_task, "wifi_ui", WIFI_UI_TASK_STACK, nullptr, 3, nullptr) != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create wifi_ui task");
+        vQueueDelete(s_ui_queue);
+        s_ui_queue = nullptr;
+        return;
+    }
+    s_ui_task_started = true;
+}
+
+static void queue_prov_show(const char *ap_ssid, const char *web_url)
+{
+    if (!s_display_ready) {
+        return;
+    }
+    ensure_wifi_ui_task();
+    if (!s_ui_queue) {
+        return;
+    }
+    WifiUiMsg msg = {.cmd = WifiUiCmd::ProvShow};
+    strncpy(msg.ap_ssid, ap_ssid ? ap_ssid : "", sizeof(msg.ap_ssid) - 1);
+    strncpy(msg.web_url, web_url ? web_url : "", sizeof(msg.web_url) - 1);
+    if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "UI queue full (show)");
+    }
+}
+
+static void queue_prov_hide(void)
+{
+    if (!s_display_ready || !s_ui_queue) {
+        return;
+    }
+    WifiUiMsg msg = {.cmd = WifiUiCmd::ProvHide};
+    if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "UI queue full (hide)");
+    }
+}
+
+static void on_wifi_event(WifiEvent event, const std::string &data)
+{
+    switch (event) {
+    case WifiEvent::Connected:
+        ESP_LOGI(TAG, "Connected to \"%s\"", data.c_str());
         s_connected = true;
-        xEventGroupSetBits(s_wifi_events, WIFI_CONNECTED_BIT);
+        esp_timer_stop(s_connect_timer);
+        xEventGroupSetBits(s_wifi_events, WIFI_EVT_CONNECTED);
+        queue_prov_hide();
+        break;
+    case WifiEvent::Disconnected:
+        ESP_LOGW(TAG, "Disconnected");
+        s_connected = false;
+        break;
+    case WifiEvent::Connecting:
+        ESP_LOGI(TAG, "Connecting to \"%s\"...", data.c_str());
+        break;
+    case WifiEvent::Scanning:
+        ESP_LOGI(TAG, "Scanning for networks...");
+        break;
+    case WifiEvent::ConfigModeEnter: {
+        auto &wifi = WifiManager::GetInstance();
+        ESP_LOGI(TAG, "Config AP: %s — %s", wifi.GetApSsid().c_str(), wifi.GetApWebUrl().c_str());
+        queue_prov_show(wifi.GetApSsid().c_str(), wifi.GetApWebUrl().c_str());
+        break;
+    }
+    case WifiEvent::ConfigModeExit:
+        ESP_LOGI(TAG, "Leaving config AP mode");
+        xEventGroupSetBits(s_wifi_events, WIFI_EVT_CONFIG_EXIT);
+        break;
+    default:
+        break;
+    }
+}
+
+static void on_connect_timeout(void *arg)
+{
+    (void)arg;
+    ESP_LOGW(TAG, "STA connect timeout (%ds), entering config AP", CONNECT_TIMEOUT_SEC);
+    xEventGroupSetBits(s_wifi_events, WIFI_EVT_CONNECT_TIMEOUT);
+}
+
+static void seed_menuconfig_credentials_if_empty(void)
+{
+    auto &ssid_manager = SsidManager::GetInstance();
+    if (!ssid_manager.GetSsidList().empty()) {
+        return;
+    }
+    if (strlen(CONFIG_HRV_WIFI_SSID) == 0) {
+        return;
+    }
+    ESP_LOGI(TAG, "Seeding Wi-Fi credentials from menuconfig");
+    ssid_manager.AddSsid(CONFIG_HRV_WIFI_SSID, CONFIG_HRV_WIFI_PASSWORD);
+}
+
+static void start_config_ap_and_wait(void)
+{
+    auto &wifi = WifiManager::GetInstance();
+
+    xEventGroupClearBits(s_wifi_events, WIFI_EVT_CONFIG_EXIT);
+    wifi.StartConfigAp();
+
+    xEventGroupWaitBits(s_wifi_events, WIFI_EVT_CONFIG_EXIT, pdTRUE, pdFALSE, portMAX_DELAY);
+
+    ESP_LOGI(TAG, "Config AP closed, retrying station");
+}
+
+static bool start_station_and_wait(int timeout_sec)
+{
+    auto &wifi = WifiManager::GetInstance();
+
+    xEventGroupClearBits(s_wifi_events, WIFI_EVT_CONNECTED | WIFI_EVT_CONNECT_TIMEOUT);
+    s_connected = false;
+
+    esp_timer_stop(s_connect_timer);
+    if (timeout_sec > 0) {
+        esp_timer_start_once(s_connect_timer, (uint64_t)timeout_sec * 1000000ULL);
+    }
+
+    wifi.StartStation();
+
+    const EventBits_t bits = xEventGroupWaitBits(s_wifi_events,
+                                                 WIFI_EVT_CONNECTED | WIFI_EVT_CONNECT_TIMEOUT,
+                                                 pdTRUE,
+                                                 pdFALSE,
+                                                 portMAX_DELAY);
+
+    esp_timer_stop(s_connect_timer);
+
+    if (bits & WIFI_EVT_CONNECTED) {
+        return true;
+    }
+    wifi.StopStation();
+    return false;
+}
+
+static void try_wifi_connect(void)
+{
+    seed_menuconfig_credentials_if_empty();
+
+    const bool have_saved = !SsidManager::GetInstance().GetSsidList().empty();
+    if (!have_saved) {
+        ESP_LOGI(TAG, "No saved Wi-Fi credentials");
+        start_config_ap_and_wait();
+        if (!start_station_and_wait(CONNECT_TIMEOUT_SEC)) {
+            ESP_LOGE(TAG, "Failed to connect after provisioning");
+        }
+        return;
+    }
+
+    ESP_LOGI(TAG, "Trying saved Wi-Fi credentials");
+    if (start_station_and_wait(CONNECT_TIMEOUT_SEC)) {
+        return;
+    }
+
+    ESP_LOGW(TAG, "Saved credentials failed, opening config AP");
+    start_config_ap_and_wait();
+    if (!start_station_and_wait(CONNECT_TIMEOUT_SEC)) {
+        ESP_LOGE(TAG, "Failed to connect after provisioning");
+    }
+}
+
+void wifi_connect_set_display_ready(bool ready)
+{
+    s_display_ready = ready;
+    if (ready) {
+        ensure_wifi_ui_task();
     }
 }
 
 esp_err_t wifi_connect_init(void)
 {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_RETURN_ON_ERROR(ret, TAG, "nvs_flash_init");
-
     s_wifi_events = xEventGroupCreate();
-    ESP_RETURN_ON_FALSE(s_wifi_events, ESP_ERR_NO_MEM, TAG, "event group");
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    esp_event_handler_instance_t instance_any_id;
-    esp_event_handler_instance_t instance_got_ip;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, nullptr, &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, nullptr, &instance_got_ip));
-
-    wifi_config_t wifi_config = {};
-    strncpy((char *)wifi_config.sta.ssid, CONFIG_HRV_WIFI_SSID, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *)wifi_config.sta.password, CONFIG_HRV_WIFI_PASSWORD, sizeof(wifi_config.sta.password) - 1);
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    ESP_LOGI(TAG, "Connecting to \"%s\"...", CONFIG_HRV_WIFI_SSID);
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_events,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE, pdFALSE, portMAX_DELAY);
-    if (bits & WIFI_CONNECTED_BIT) {
-        return ESP_OK;
+    if (!s_wifi_events) {
+        return ESP_ERR_NO_MEM;
     }
-    return ESP_FAIL;
+
+    esp_timer_create_args_t timer_args = {
+        .callback = on_connect_timeout,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "wifi_sta_timeout",
+        .skip_unhandled_events = true,
+    };
+    if (esp_timer_create(&timer_args, &s_connect_timer) != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    WifiManagerConfig config;
+    config.ssid_prefix = "HRVFlower";
+    config.language = "en-US";
+
+    auto &wifi = WifiManager::GetInstance();
+    if (!wifi.Initialize(config)) {
+        return ESP_FAIL;
+    }
+
+    wifi.SetEventCallback(on_wifi_event);
+    try_wifi_connect();
+
+    if (!wifi.IsConnected()) {
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "IP: %s", wifi.GetIpAddress().c_str());
+    return ESP_OK;
 }
 
 bool wifi_connect_is_ready(void)
 {
-    return s_connected;
+    return s_connected && WifiManager::GetInstance().IsConnected();
 }

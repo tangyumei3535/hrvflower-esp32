@@ -1,0 +1,9 @@
+dependencies:
+  espressif/cjson:
+    matches:
+    - if: idf_version >=6.0
+    version: ^1.7.19
+  idf: '>=5.3'
+description: ESP32 WiFi configuration (captive portal + STA)
+license: MIT
+version: 3.1.4

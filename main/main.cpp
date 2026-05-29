@@ -24,12 +24,13 @@ extern "C" void app_main(void)
     esp_board_manager_print_board_info();
     ESP_ERROR_CHECK(esp_board_manager_init());
 
-    ESP_ERROR_CHECK(wifi_connect_init());
-
     if (!display_init()) {
         ESP_LOGE(TAG, "display_init failed");
         return;
     }
+    wifi_connect_set_display_ready(true);
+
+    ESP_ERROR_CHECK(wifi_connect_init());
 
     if (display_lock(-1)) {
         hrv_ui_init();

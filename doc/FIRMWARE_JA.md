@@ -11,12 +11,14 @@
 
 ## 1. 今後の開発 TODO（ロードマップ）
 
-### 1.1 Wi-Fi プロビジョニング UI
+### 1.1 Wi-Fi プロビジョニング UI ✅
 
-- [ ] **課題**：未接続時に画面が乱れる
-- [ ] **目標**：オンデバイス Wi-Fi 設定（SSID/パスワードまたは SoftAP）
-- [ ] **期待**：認証情報を NVS に保存、再起動後自動接続；未接続時はガイド画面
-- [ ] **関連**：`main/wifi_connect.cpp`、LVGL プロビジョニング UI、NVS
+- [x] **課題**：未接続時に画面が乱れる
+- [x] **目標**：オンデバイス Wi-Fi 設定（SSID/パスワードまたは SoftAP）
+- [x] **期待**：認証情報を NVS に保存、再起動後自動接続；未接続時はガイド画面
+- [x] **関連**：`main/wifi_connect.cpp`、`components/esp-wifi-connect/`、LVGL UI（`hrv_ui_provisioning_*`）、NVS `wifi`
+
+**実装済み（2026-05-27）**：NVS STA 優先（60s タイムアウト）→ 失敗時 `HRVFlower-XXXX` SoftAP + `http://192.168.4.1`；画面にホットスポット名と呼吸アニメ。
 
 ### 1.2 低消費電力 + 定期 NVS 永続化
 
@@ -67,7 +69,7 @@
 
 | 機能 | 説明 |
 |------|------|
-| Wi-Fi STA | 切断時自動再接続（20 回） |
+| Wi-Fi STA | NVS 認証 + 起動時 captive portal；実行中切断はバックグラウンド再接続 |
 | Bemfa MQTT | 既定 `mqtt://bemfa.com:9501`；UID 単体または AppID 複数端末 |
 | トピック subscribe | 既定 `hrv001`（`BEMFA_MQTT_TOPIC` 変更可） |
 | JSON → UI | 有効 MQTT payload 受信時**のみ** `drawInterface()` |
@@ -83,10 +85,9 @@
 | Bemfa アカウントとトピック | ユーザー登録が必要 |
 | タッチ / IMU / 音声 | 本デモ未使用；IMU 回転 → §1.5 |
 | オフライン / MQTT 状態 UI | プッシュ待ちが分からない |
-| 未接続時の画面乱れ | プロビジョニング UI が必要（§1.1） |
 | 起動後 Retain 最終フレーム | 未対応 |
 | MQTT TLS（9503） | 現在は平文 9501 のみ |
-| OTA / プロビジョニング / NVS / ESP32 能動リクエスト / BLE | ロードマップ §1 |
+| OTA / ESP32 能動リクエスト / BLE | ロードマップ §1 |
 
 ### 2.3 典型的な挙動
 
@@ -111,7 +112,7 @@ idf.py -p <PORT> monitor
 | [main/main.cpp](../main/main.cpp) | 起動：ボード、Wi-Fi、表示、MQTT |
 | [main/mqtt_hrv.cpp](../main/mqtt_hrv.cpp) | subscribe、解析、UI トリガー |
 | [main/hrv_ui.cpp](../main/hrv_ui.cpp) | UI と 5 段階フラワー |
-| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi STA |
+| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi：NVS STA、SoftAP プロビジョニング、ガイド画面 |
 | [main/display.cpp](../main/display.cpp) | LCD + LVGL |
 | [main/Kconfig.projbuild](../main/Kconfig.projbuild) | Wi-Fi / Bemfa 設定 |
 
@@ -121,4 +122,5 @@ idf.py -p <PORT> monitor
 
 | 日付 | 内容 |
 |------|------|
+| 2026-05-27 | §1.1 Wi-Fi プロビジョニング実装 |
 | 2026-05-26 | 旧統合 TODO から分離 |

@@ -11,12 +11,14 @@ Correlati: [README_IT.md](./README_IT.md) · [main/Kconfig.projbuild](../main/Kc
 
 ## 1. Sviluppi futuri (roadmap)
 
-### 1.1 Interfaccia provisioning Wi-Fi
+### 1.1 Interfaccia provisioning Wi-Fi ✅
 
-- [ ] **Problema**: schermo disturbato senza rete
-- [ ] **Obiettivo**: configurazione Wi-Fi on-device (SSID/password o SoftAP)
-- [ ] **Atteso**: credenziali in NVS, riconnessione automatica; schermata guida offline
-- [ ] **Coinvolge**: `main/wifi_connect.cpp`, UI LVGL provisioning, NVS
+- [x] **Problema**: schermo disturbato senza rete
+- [x] **Obiettivo**: configurazione Wi-Fi on-device (SSID/password o SoftAP)
+- [x] **Atteso**: credenziali in NVS, riconnessione automatica; schermata guida offline
+- [x] **Coinvolge**: `main/wifi_connect.cpp`, `components/esp-wifi-connect/`, UI LVGL (`hrv_ui_provisioning_*`), NVS `wifi`
+
+**Implementato (2026-05-27)**: STA da NVS (timeout 60s) → SoftAP `HRVFlower-XXXX` + `http://192.168.4.1`; nome hotspot e animazione a schermo.
 
 ### 1.2 Basso consumo + persistenza NVS periodica
 
@@ -67,7 +69,7 @@ Correlati: [README_IT.md](./README_IT.md) · [main/Kconfig.projbuild](../main/Kc
 
 | Funzione | Note |
 |----------|------|
-| Wi-Fi STA | Riconnessione automatica (20 tentativi) |
+| Wi-Fi STA | Credenziali NVS + captive portal all’avvio; riconnessione in background |
 | Bemfa MQTT | Default `mqtt://bemfa.com:9501`; UID singolo o AppID multi-dispositivo |
 | Subscribe topic | Default `hrv001` (`BEMFA_MQTT_TOPIC` configurabile) |
 | JSON → UI | `drawInterface()` **solo** su payload MQTT valido |
@@ -83,10 +85,9 @@ Correlati: [README_IT.md](./README_IT.md) · [main/Kconfig.projbuild](../main/Kc
 | Account e topic Bemfa | Registrazione utente |
 | Touch / IMU / voce | Non usati in questa demo; rotazione IMU → §1.5 |
 | UI stato offline / MQTT | Nessun indicatore “in attesa push” |
-| Schermo disturbato offline | Serve UI provisioning (§1.1) |
 | Retain ultimo frame all’avvio | Non gestito |
 | MQTT TLS (9503) | Solo 9501 in chiaro |
-| OTA / provisioning / NVS / richieste ESP32 / BLE | Roadmap §1 |
+| OTA / richieste ESP32 / BLE | Roadmap §1 |
 
 ### 2.3 Comportamento tipico
 
@@ -111,7 +112,7 @@ idf.py -p <PORT> monitor
 | [main/main.cpp](../main/main.cpp) | Avvio: board, Wi-Fi, display, MQTT |
 | [main/mqtt_hrv.cpp](../main/mqtt_hrv.cpp) | Subscribe, parse, trigger UI |
 | [main/hrv_ui.cpp](../main/hrv_ui.cpp) | UI e stadi fiore |
-| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi STA |
+| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi: STA NVS, SoftAP provisioning, schermata guida |
 | [main/display.cpp](../main/display.cpp) | LCD + LVGL |
 | [main/Kconfig.projbuild](../main/Kconfig.projbuild) | Kconfig Wi-Fi / Bemfa |
 
@@ -121,4 +122,5 @@ idf.py -p <PORT> monitor
 
 | Data | Note |
 |------|------|
+| 2026-05-27 | §1.1 provisioning Wi-Fi implementato |
 | 2026-05-26 | Separato dal vecchio doc integrazione |

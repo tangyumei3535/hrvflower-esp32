@@ -29,11 +29,13 @@ idf_component_register(
         esp_wifi
         esp_netif
         esp_event
+        esp_timer
         mqtt
         json
         esp_board_manager
         esp_lvgl_port
         esp_driver_ledc
+        esp-wifi-connect
 )
 
 get_component_library("lvgl" LVGL_LIB)

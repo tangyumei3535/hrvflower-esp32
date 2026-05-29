@@ -11,12 +11,14 @@
 
 ## 1. 未来开发 TODO（固件路线图）
 
-### 1.1 Wi-Fi 配网界面
+### 1.1 Wi-Fi 配网界面 ✅
 
-- [ ] **问题**：未联网时屏幕花屏，用户体验差
-- [ ] **目标**：on-device Wi-Fi 设置（SSID/密码或 SoftAP 配网）
-- [ ] **预期**：凭证写入 NVS，重启自动连接；未联网时显示引导页
-- [ ] **涉及**：`main/wifi_connect.cpp`、LVGL 配网 UI、NVS
+- [x] **问题**：未联网时屏幕花屏，用户体验差
+- [x] **目标**：on-device Wi-Fi 设置（SSID/密码或 SoftAP 配网）
+- [x] **预期**：凭证写入 NVS，重启自动连接；未联网时显示引导页
+- [x] **涉及**：`main/wifi_connect.cpp`、`components/esp-wifi-connect/`、LVGL 配网 UI（`hrv_ui_provisioning_*`）、NVS `wifi` 命名空间
+
+**已实现（2026-05-27）**：NVS 凭据优先 STA（60s 超时）→ 失败则 `HRVFlower-XXXX` SoftAP + `http://192.168.4.1` 网页配网；屏显热点名与呼吸动画；menuconfig SSID 仅在 NVS 为空时一次性写入。
 
 ### 1.2 低功耗 + 定时 NVS 持久化
 
@@ -67,7 +69,7 @@
 
 | 能力 | 说明 |
 |------|------|
-| STA 连接 Wi-Fi | 断线自动重连（20 次） |
+| STA 连接 Wi-Fi | NVS 凭据 + 开机 captive portal；运行中断线由 `esp-wifi-connect` 后台重连 |
 | 巴法云 MQTT | 默认 `mqtt://bemfa.com:9501`；单设备 UID 鉴权或 AppID 多设备 |
 | 订阅主题 | 默认 `hrv001`（`BEMFA_MQTT_TOPIC` 可改） |
 | JSON 解析与 UI | **仅**收到有效 MQTT payload 时 `drawInterface()` |
@@ -83,10 +85,9 @@
 | 巴法云账号与主题 | 需自行注册 |
 | 触摸 / IMU / 语音 | 本示例未使用；IMU 旋转见 §1.5 |
 | 离线 / MQTT 状态 UI | 看不出是否在等待推送 |
-| 未联网时花屏 | 需配网界面与离线态（见 §1.1） |
 | 启动后 Retain 最后一帧 | 未专门处理 |
 | MQTT TLS（9503） | 当前仅明文 9501 |
-| OTA / 配网 / NVS / ESP32 主动请求 / BLE | 见 §1 路线图 |
+| OTA / ESP32 主动请求 / BLE | 见 §1 路线图 |
 
 ### 2.3 烧录后典型现象
 
@@ -111,7 +112,7 @@ idf.py -p <PORT> monitor
 | [main/main.cpp](../main/main.cpp) | 启动：板级、Wi-Fi、显示、MQTT |
 | [main/mqtt_hrv.cpp](../main/mqtt_hrv.cpp) | 订阅、解析、触发 UI |
 | [main/hrv_ui.cpp](../main/hrv_ui.cpp) | UI 与五阶段花 |
-| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi STA |
+| [main/wifi_connect.cpp](../main/wifi_connect.cpp) | Wi-Fi：NVS STA、SoftAP 配网、配网屏 UI |
 | [main/display.cpp](../main/display.cpp) | LCD + LVGL |
 | [main/Kconfig.projbuild](../main/Kconfig.projbuild) | Wi-Fi / 巴法云配置 |
 
@@ -121,4 +122,5 @@ idf.py -p <PORT> monitor
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05-27 | §1.1 Wi-Fi 配网（captive portal + LVGL 引导）已实现 |
 | 2026-05-26 | 从 INTEGRATION_TODO 拆出固件现状与路线图 |

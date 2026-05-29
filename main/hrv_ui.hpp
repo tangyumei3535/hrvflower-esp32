@@ -17,6 +17,10 @@ typedef struct {
     char city[32];        /* sender's current city from GPS */
 } hrv_status_t;
 
+/** Full-screen provisioning UI (breathing indicator + hotspot name). */
+void hrv_ui_provisioning_begin(const char *ap_ssid, const char *web_url);
+void hrv_ui_provisioning_end(void);
+
 /** Create black full-screen UI shell (call once after display_init). */
 void hrv_ui_init(void);
 

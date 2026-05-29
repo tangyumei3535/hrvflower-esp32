@@ -1,6 +1,6 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  idf: ">=5.5"
+  idf: '>=5.5'
 
   espressif/esp_board_manager:
     version: ^0.5
