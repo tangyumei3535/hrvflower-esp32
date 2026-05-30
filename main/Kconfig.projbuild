@@ -77,18 +77,18 @@ menu "HRV Emotion Flower"
             bool "Enable deep sleep after active window"
             default n
             help
-                Stay awake for HRV_ACTIVE_WINDOW_SEC, then turn off backlight and
-                enter deep sleep. No RTC timer wake. NVS-cached UI is shown after wake.
-                AtomS3R: optional BMI270 any-motion (EXT1) or side reset.
+                After the last valid MQTT payload, stay awake HRV_ACTIVE_WINDOW_SEC,
+                then turn off backlight and enter deep sleep. No RTC timer wake.
+                NVS-cached UI is shown after wake. AtomS3R: optional BMI270 EXT1 wake.
 
         config HRV_ACTIVE_WINDOW_SEC
-            int "Active window before deep sleep (seconds)"
+            int "Idle time after last MQTT before deep sleep (seconds)"
             depends on HRV_LOW_POWER_ENABLE
             default 90
             range 10 600
             help
-                Run Wi-Fi/MQTT and accept payloads for this long after boot/reset,
-                then enter deep sleep.
+                Each valid MQTT payload resets this idle timer. Deep sleep starts
+                when no new payload arrives for this many seconds.
 
         config HRV_IMU_WAKE_ENABLE
             bool "BMI270 any-motion wake from deep sleep (AtomS3R)"

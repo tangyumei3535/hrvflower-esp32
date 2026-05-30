@@ -20,3 +20,6 @@ lv_disp_t *display_get_lvgl_disp(void);
 /** Acquire LVGL mutex before any LVGL API call from non-LVGL tasks. */
 bool display_lock(int timeout_ms);
 void display_unlock(void);
+
+/** Push a full LVGL frame to the panel (call before heavy Wi-Fi work). */
+void display_refresh_now(void);
