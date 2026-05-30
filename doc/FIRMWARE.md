@@ -34,11 +34,11 @@ Related: [README.md](../README.md) · [main/Kconfig.projbuild](../main/Kconfig.p
   - Low-power wake: first active sync after sleep, then decide whether to sleep again
 - [ ] **Touches**: `esp_http_client` / MQTT publish, request state machine, `hrv_ui` / NVS / sleep policy; optional UI “requesting…” hint
 
-### 1.4 OTA firmware updates
+### 1.4 OTA firmware updates ✅
 
-- [ ] **Goal**: over-the-air update without USB flash
-- [ ] **Approach**: `esp_https_ota`; `ota_0` / `ota_1` partitions
-- [ ] **Touches**: `partitions.csv`, version reporting, optional MQTT-triggered upgrade URL
+- [x] **Goal**: HTTPS OTA without routine USB flash (re-flash partition table once when enabling OTA layout)
+- [x] **Approach**: `esp_https_ota`; `partitions.csv` with `ota_0` / `ota_1` (3 MB each on 8 MB flash)
+- [x] **Touches**: `main/hrv_ota.cpp`, `PROJECT_VER` in root `CMakeLists.txt`, MQTT `{"type":"ota","url":"https://..."}`
 
 ### 1.5 IMU auto-rotate display
 

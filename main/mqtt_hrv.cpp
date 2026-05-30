@@ -15,6 +15,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#include "hrv_ota.hpp"
 #include "hrv_ui.hpp"
 #include "mqtt_client.h"
 
@@ -47,6 +48,10 @@ static void configure_mqtt_credentials(esp_mqtt_client_config_t *mqtt_cfg)
 static void on_mqtt_payload(const char *data, int data_len)
 {
     if (data_len <= 0) {
+        return;
+    }
+
+    if (hrv_ota_try_mqtt_command(data, (size_t)data_len)) {
         return;
     }
 

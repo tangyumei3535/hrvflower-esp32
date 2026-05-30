@@ -37,11 +37,25 @@
   - 低功耗唤醒：从 sleep 醒来后的首轮主动同步，再决定是否休眠
 - [ ] **涉及**：`esp_http_client` / MQTT publish、请求-响应状态机、与 `hrv_ui` / NVS / 低功耗策略配合；可选 UI「正在请求…」提示
 
-### 1.4 OTA 固件升级
+### 1.4 OTA 固件升级 ✅
 
-- [ ] **目标**：Over-The-Air 更新，免 USB 烧录
-- [ ] **方案**：`esp_https_ota`；分区表预留 `ota_0` / `ota_1`
-- [ ] **涉及**：`partitions.csv`、版本号、可选 MQTT 触发升级 URL
+- [x] **目标**：Over-The-Air HTTPS 更新，免 USB 重复烧录（首次改分区表仍需完整 flash）
+- [x] **分区**：`partitions.csv` — `ota_0` / `ota_1` 各 3 MB（8 MB Flash）
+- [x] **实现**：`main/hrv_ota.cpp`（`esp_https_ota` + 证书 bundle）
+- [x] **版本号**：工程 `CMakeLists.txt` 中 `PROJECT_VER`（日志见 `hrv_ota` tag）
+- [x] **MQTT 触发**：同主题推送 `{"type":"ota","url":"https://host/firmware.bin"}`
+- [x] **可选**：menuconfig **OTA → Default URL** 在联网后自动升级一次
+
+**首次启用 OTA 分区后烧录**（二选一）：
+
+```bash
+idf.py -p PORT erase-flash
+idf.py -p PORT flash
+```
+
+或至少：`idf.py -p PORT partition-table flash` 后再 `flash` 应用。
+
+**发布固件**：`idf.py build` 后上传 `build/hrvflower_esp32.bin`（或带版本号的副本）到 HTTPS；设备需能访问该 URL。
 
 ### 1.5 IMU 自动旋转屏幕
 
@@ -76,6 +90,7 @@
 | 巴法云 MQTT | 默认 `mqtt://bemfa.com:9501`；单设备 UID 鉴权或 AppID 多设备 |
 | 订阅主题 | 默认 `hrv001`（`BEMFA_MQTT_TOPIC` 可改） |
 | JSON 解析与 UI | 有效 MQTT payload 写入 NVS（`hrv`/`status_json`）并刷新；断电/深睡唤醒/联网后自动显示缓存（首次无缓存为占位） |
+| HTTPS OTA | 双分区 `ota_0`/`ota_1`；MQTT `{"type":"ota","url":"https://..."}` 或 menuconfig 默认 URL |
 | 五阶段情绪花 | HRV 阈值 → 灰苞 / 暗红 / 橙 / 粉 / 金红+绿晕 |
 | 顶栏天气 + 底栏 HRV | 含温度、城市、更新时间 |
 | MQTT 断线重连 | ESP-MQTT 内部处理 |

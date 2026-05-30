@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hrv_imu_wake.h"
+#include "hrv_ota.hpp"
 #include "hrv_power.hpp"
 #include "hrv_status_store.hpp"
 #include "hrv_ui.hpp"
@@ -38,6 +39,8 @@ extern "C" void app_main(void)
         return;
     }
 
+    hrv_ota_log_running_version();
+
     if (!display_init()) {
         ESP_LOGE(TAG, "display_init failed");
         return;
@@ -51,6 +54,13 @@ extern "C" void app_main(void)
     }
 
     ESP_ERROR_CHECK(wifi_connect_init());
+
+#if CONFIG_HRV_OTA_ENABLE
+    if (strlen(CONFIG_HRV_OTA_DEFAULT_URL) > 0) {
+        ESP_LOGI(TAG, "Boot OTA from menuconfig URL");
+        (void)hrv_ota_apply_https_url(CONFIG_HRV_OTA_DEFAULT_URL);
+    }
+#endif
 
     ESP_ERROR_CHECK(mqtt_hrv_start());
 

@@ -68,6 +68,19 @@ ESP32：Wi-Fi → 订阅主题 → 解析 JSON → LVGL 情绪花
 
 阈值见 `main/hrv_ui.cpp` 的 `hrv_to_stage()`。
 
+### 1.4 OTA 命令（可选）
+
+与 HRV 状态共用巴法云主题，payload 示例：
+
+```json
+{
+  "type": "ota",
+  "url": "https://example.com/hrvflower_esp32.bin"
+}
+```
+
+设备收到后通过 HTTPS 下载并重启；`url` 须为 **HTTPS** 直链 `.bin`（与 `idf.py build` 产物一致）。升级期间不更新情绪花 UI。
+
 ### 1.5 iPhone 说明
 
 - **无 Apple Watch**：健康内 HRV 样本少，快捷指令常读到空/旧值。

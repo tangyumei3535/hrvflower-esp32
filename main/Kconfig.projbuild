@@ -118,4 +118,45 @@ menu "HRV Emotion Flower"
 
     endmenu
 
+    menu "OTA (HTTPS)"
+
+        config HRV_OTA_ENABLE
+            bool "Enable HTTPS OTA (dual ota_0/ota_1 partitions)"
+            default y
+            help
+                Requires custom partitions.csv with ota_0 and ota_1.
+                First flash after partition change: flash partition table + app
+                (idf.py erase-flash or full flash). Upgrade via MQTT JSON or
+                menuconfig default URL.
+
+        config HRV_OTA_USE_CERT_BUNDLE
+            bool "Use ESP x509 certificate bundle for HTTPS OTA"
+            depends on HRV_OTA_ENABLE
+            default y
+            help
+                Verify HTTPS server with built-in root CA bundle. Disable only
+                for lab servers with a custom cert_pem (not implemented here).
+
+        config HRV_OTA_SKIP_COMMON_NAME_CHECK
+            bool "Skip TLS common-name check (lab only)"
+            depends on HRV_OTA_ENABLE
+            default n
+
+        config HRV_OTA_URL_MAX_LEN
+            int "Max OTA URL length (MQTT + menuconfig)"
+            depends on HRV_OTA_ENABLE
+            default 256
+            range 64 512
+
+        config HRV_OTA_DEFAULT_URL
+            string "Optional HTTPS firmware URL (boot-time upgrade)"
+            depends on HRV_OTA_ENABLE
+            default ""
+            help
+                If non-empty, run OTA once after Wi-Fi is up (before MQTT idle
+                window / deep sleep). Leave empty to upgrade only via MQTT
+                {"type":"ota","url":"https://..."}.
+
+    endmenu
+
 endmenu

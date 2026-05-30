@@ -25,6 +25,7 @@ idf_component_register(
         "hrv_status_store.cpp"
         "hrv_power.cpp"
         "hrv_imu_wake.c"
+        "hrv_ota.cpp"
         "board_display.c"
     INCLUDE_DIRS "include"
     REQUIRES
@@ -42,6 +43,10 @@ idf_component_register(
         bmi270_sensor
         i2c_bus
         driver
+        app_update
+        esp_https_ota
+        esp_http_client
+        mbedtls
 )
 
 get_component_library("lvgl" LVGL_LIB)
