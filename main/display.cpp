@@ -97,30 +97,26 @@ static bool init_lvgl_port(void)
     const bool lvgl_double_buf = true;
 #endif
 
-    lvgl_port_display_cfg_t disp_cfg = {
-        .io_handle = s_lcd_handles->io_handle,
-        .panel_handle = s_lcd_handles->panel_handle,
-        .buffer_size = static_cast<uint32_t>(s_lcd_cfg->lcd_width * lvgl_buf_lines),
-        .double_buffer = lvgl_double_buf,
-        .hres = s_lcd_cfg->lcd_width,
-        .vres = s_lcd_cfg->lcd_height,
-        .monochrome = false,
-        .rotation = {
-            .swap_xy = static_cast<bool>(s_lcd_cfg->swap_xy),
-            .mirror_x = static_cast<bool>(s_lcd_cfg->mirror_x),
-            .mirror_y = static_cast<bool>(s_lcd_cfg->mirror_y),
-        },
-        .flags = {
-            .buff_dma = true,
-            .buff_spiram = false,
-            .swap_bytes = true,
-        },
-    };
+    lvgl_port_display_cfg_t disp_cfg{};
+    disp_cfg.io_handle = s_lcd_handles->io_handle;
+    disp_cfg.panel_handle = s_lcd_handles->panel_handle;
+    disp_cfg.buffer_size = static_cast<uint32_t>(s_lcd_cfg->lcd_width * lvgl_buf_lines);
+    disp_cfg.double_buffer = lvgl_double_buf;
+    disp_cfg.hres = s_lcd_cfg->lcd_width;
+    disp_cfg.vres = s_lcd_cfg->lcd_height;
+    disp_cfg.monochrome = false;
+    disp_cfg.rotation.swap_xy = static_cast<bool>(s_lcd_cfg->swap_xy);
+    disp_cfg.rotation.mirror_x = static_cast<bool>(s_lcd_cfg->mirror_x);
+    disp_cfg.rotation.mirror_y = static_cast<bool>(s_lcd_cfg->mirror_y);
+    disp_cfg.flags.buff_dma = true;
+    disp_cfg.flags.buff_spiram = false;
+    disp_cfg.flags.swap_bytes = true;
 
     if (strcmp(s_lcd_cfg->sub_type, "spi") == 0) {
         s_lvgl_disp = lvgl_port_add_disp(&disp_cfg);
     } else {
-        lvgl_port_display_dsi_cfg_t dsi_cfg = {.flags = {.avoid_tearing = false}};
+        lvgl_port_display_dsi_cfg_t dsi_cfg{};
+        dsi_cfg.flags.avoid_tearing = false;
         s_lvgl_disp = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
     }
     ESP_RETURN_ON_FALSE(s_lvgl_disp, false, TAG, "lvgl_port_add_disp");

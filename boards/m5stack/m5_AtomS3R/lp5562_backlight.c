@@ -123,6 +123,14 @@ void board_display_backlight_on(void)
     (void)lp5562_write_reg(s_handle->dev, LP5562_REG_B_PWM, 255);
 }
 
+void board_display_backlight_off(void)
+{
+    if (s_handle == NULL || s_handle->dev == NULL) {
+        return;
+    }
+    (void)lp5562_write_reg(s_handle->dev, LP5562_REG_B_PWM, 0);
+}
+
 static int display_backlight_deinit(void *device_handle)
 {
     atoms3r_backlight_handle_t *handle = device_handle;

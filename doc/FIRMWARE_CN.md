@@ -20,11 +20,14 @@
 
 **已实现（2026-05-27）**：NVS 凭据优先 STA（60s 超时）→ 失败则 `HRVFlower-XXXX` SoftAP + `http://192.168.4.1` 网页配网；屏显热点名与呼吸动画；menuconfig SSID 仅在 NVS 为空时一次性写入。
 
-### 1.2 低功耗 + 定时 NVS 持久化
+### 1.2 低功耗 + NVS 持久化
 
-- [ ] **目标**：降低待机功耗，约 **每小时唤醒一次**
-- [ ] **行为**：唤醒后将最新 HRV 状态写入 NVS，再休眠或短暂连网
-- [ ] **涉及**：ESP-IDF sleep API、RTC 定时唤醒、LCD/MQTT 与休眠衔接
+- [x] **Deep sleep**：menuconfig **Low power** → 默认 **90 s**（1.5 min）活跃窗口后关背光进入 deep sleep（**无 RTC 定时**，可改）
+- [x] **唤醒**：**GPIO16 EXT1** any-motion（默认，与 `ESP_ASTOM_S3` 一致）或侧面复位；**勿用 GPIO3**（32K）
+- [x] **IMU 入睡前配置**：`main/hrv_imu_wake.c`（`espressif/bmi270_sensor`，参考 esp-spot `any_wake_deepsleep`）
+- [x] 复位后全启动，显示 NVS 中最后一帧 JSON
+- [ ] **Light sleep + GPIO41**：可选（屏下键即时唤醒，功耗高于 deep sleep）
+- [ ] 深睡期间保持 Wi-Fi 关联等（当前深睡后需复位再连网）
 
 ### 1.3 ESP32 端主动请求
 

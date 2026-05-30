@@ -8,3 +8,7 @@
 __attribute__((weak)) void board_display_backlight_on(void)
 {
 }
+
+__attribute__((weak)) void board_display_backlight_off(void)
+{
+}

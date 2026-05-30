@@ -8,3 +8,5 @@ dependencies:
   espressif/esp_lvgl_port:
     public: true
     version: ^2
+
+  espressif/bmi270_sensor: ^0.1.1

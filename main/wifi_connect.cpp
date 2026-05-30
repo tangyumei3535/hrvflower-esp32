@@ -100,7 +100,8 @@ static void queue_prov_show(const char *ap_ssid, const char *web_url)
     if (!s_ui_queue) {
         return;
     }
-    WifiUiMsg msg = {.cmd = WifiUiCmd::ProvShow};
+    WifiUiMsg msg{};
+    msg.cmd = WifiUiCmd::ProvShow;
     strncpy(msg.ap_ssid, ap_ssid ? ap_ssid : "", sizeof(msg.ap_ssid) - 1);
     strncpy(msg.web_url, web_url ? web_url : "", sizeof(msg.web_url) - 1);
     if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
@@ -113,7 +114,8 @@ static void queue_prov_hide(void)
     if (!s_display_ready || !s_ui_queue) {
         return;
     }
-    WifiUiMsg msg = {.cmd = WifiUiCmd::ProvHide};
+    WifiUiMsg msg{};
+    msg.cmd = WifiUiCmd::ProvHide;
     if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
         ESP_LOGW(TAG, "UI queue full (hide)");
     }
@@ -124,7 +126,8 @@ static void queue_restore_status(void)
     if (!s_display_ready || !s_ui_queue) {
         return;
     }
-    WifiUiMsg msg = {.cmd = WifiUiCmd::RestoreStatus};
+    WifiUiMsg msg{};
+    msg.cmd = WifiUiCmd::RestoreStatus;
     if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
         ESP_LOGW(TAG, "UI queue full (restore)");
     }
