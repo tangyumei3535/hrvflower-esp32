@@ -26,13 +26,6 @@ void hrv_power_log_wakeup_reason(void)
     }
 }
 
-esp_err_t hrv_power_prepare_deep_sleep(void)
-{
-    /* Only disable RTC timer; other sources were never enabled — avoid IDF errors. */
-    (void)esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-    return ESP_OK;
-}
-
 void hrv_power_display_off(void)
 {
     board_display_backlight_off();

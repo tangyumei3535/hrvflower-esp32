@@ -157,6 +157,8 @@ esp_err_t hrv_imu_wake_prepare(void)
 
 esp_err_t hrv_imu_wake_arm_for_deep_sleep(void)
 {
+    esp_err_t err;
+
     if (!s_ready) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -164,6 +166,12 @@ esp_err_t hrv_imu_wake_arm_for_deep_sleep(void)
     uint8_t st = 0;
     bmi2_get_regs(BMI2_INT_STATUS_0_ADDR, &st, 1, s_bmi_handle);
     vTaskDelay(pdMS_TO_TICKS(20));
+
+    /* Clear any prior wake config; deep sleep uses EXT1 (IMU INT) only. */
+    err = esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    if (err != ESP_OK) {
+        return err;
+    }
 
     const gpio_config_t io = {
         .pin_bit_mask = (1ULL << IMU_INT_GPIO),
@@ -177,7 +185,11 @@ esp_err_t hrv_imu_wake_arm_for_deep_sleep(void)
     }
     gpio_hold_en(IMU_INT_GPIO);
 
-    return esp_sleep_enable_ext1_wakeup((1ULL << IMU_INT_GPIO), ESP_EXT1_WAKEUP_ANY_HIGH);
+    err = esp_sleep_enable_ext1_wakeup((1ULL << IMU_INT_GPIO), ESP_EXT1_WAKEUP_ANY_HIGH);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Deep sleep wake: EXT1 GPIO%d only", IMU_INT_GPIO);
+    }
+    return err;
 }
 
 #else

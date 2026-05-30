@@ -5,14 +5,16 @@
  */
 #include "mqtt_hrv.hpp"
 
+#include <atomic>
 #include <cstring>
 
 #include "display.hpp"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 #include "freertos/task.h"
+#include "sdkconfig.h"
 #include "hrv_ui.hpp"
 #include "mqtt_client.h"
 
@@ -20,9 +22,12 @@ static const char *TAG = "mqtt_hrv";
 
 static esp_mqtt_client_handle_t s_client;
 static char s_mqtt_client_id[64];
-static EventGroupHandle_t s_activity_events;
+static std::atomic<int64_t> s_last_msg_us{0};
 
-#define MQTT_ACTIVITY_BIT BIT0
+static void touch_last_msg_time(void)
+{
+    s_last_msg_us.store(esp_timer_get_time(), std::memory_order_relaxed);
+}
 
 static void configure_mqtt_credentials(esp_mqtt_client_config_t *mqtt_cfg)
 {
@@ -47,9 +52,7 @@ static void on_mqtt_payload(const char *data, int data_len)
 
     if (display_lock(200)) {
         if (hrv_ui_apply_payload(data, (size_t)data_len)) {
-            if (s_activity_events) {
-                xEventGroupSetBits(s_activity_events, MQTT_ACTIVITY_BIT);
-            }
+            touch_last_msg_time();
         } else {
             ESP_LOGW(TAG, "Ignored payload: %.*s", data_len, data);
         }
@@ -57,15 +60,30 @@ static void on_mqtt_payload(const char *data, int data_len)
     }
 }
 
-bool mqtt_hrv_wait_activity(uint32_t timeout_ms)
+void mqtt_hrv_active_window(uint32_t idle_after_last_ms)
 {
-    if (!s_activity_events) {
-        vTaskDelay(pdMS_TO_TICKS(timeout_ms));
-        return false;
+    const int64_t idle_us = (int64_t)idle_after_last_ms * 1000;
+
+    touch_last_msg_time();
+
+#if CONFIG_HRV_LOW_POWER_ENABLE
+    ESP_LOGI(TAG, "Deep sleep after %lu s idle since last valid MQTT",
+             (unsigned long)(idle_after_last_ms / 1000U));
+#endif
+
+    while (true) {
+        const int64_t last_us = s_last_msg_us.load(std::memory_order_relaxed);
+        const int64_t elapsed_us = esp_timer_get_time() - last_us;
+        if (elapsed_us >= idle_us) {
+            break;
+        }
+        const uint32_t remain_ms = (uint32_t)((idle_us - elapsed_us) / 1000);
+        vTaskDelay(pdMS_TO_TICKS(remain_ms > 200 ? 200 : (remain_ms == 0 ? 1 : remain_ms)));
     }
-    const EventBits_t bits = xEventGroupWaitBits(
-        s_activity_events, MQTT_ACTIVITY_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(timeout_ms));
-    return (bits & MQTT_ACTIVITY_BIT) != 0;
+
+#if CONFIG_HRV_LOW_POWER_ENABLE
+    ESP_LOGI(TAG, "Idle timeout elapsed");
+#endif
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -114,13 +132,6 @@ esp_err_t mqtt_hrv_start(void)
     mqtt_cfg.session.keepalive = 60;
     mqtt_cfg.network.reconnect_timeout_ms = 5000;
     mqtt_cfg.network.timeout_ms = 10000;
-
-    if (!s_activity_events) {
-        s_activity_events = xEventGroupCreate();
-        if (!s_activity_events) {
-            return ESP_ERR_NO_MEM;
-        }
-    }
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!s_client) {

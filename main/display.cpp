@@ -19,6 +19,7 @@
 #include "esp_lvgl_port_touch.h"
 #endif
 #include "driver/ledc.h"
+#include "lvgl.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "display";
@@ -90,7 +91,8 @@ static bool init_lvgl_port(void)
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_port_cfg), TAG, "lvgl_port_init");
 
 #ifdef CONFIG_ESP_BOARD_M5_ATOMS3R
-    const uint32_t lvgl_buf_lines = 20;
+    /* Full-frame buffer avoids white banding while Wi-Fi stack runs (partial flush). */
+    const uint32_t lvgl_buf_lines = s_lcd_cfg->lcd_height;
     const bool lvgl_double_buf = false;
 #else
     const uint32_t lvgl_buf_lines = 50;
@@ -120,6 +122,12 @@ static bool init_lvgl_port(void)
         s_lvgl_disp = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
     }
     ESP_RETURN_ON_FALSE(s_lvgl_disp, false, TAG, "lvgl_port_add_disp");
+
+    if (lvgl_port_lock(100)) {
+        lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x000000), 0);
+        lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_COVER, 0);
+        lvgl_port_unlock();
+    }
 
     set_lcd_backlight(BRIGHTNESS_DEFAULT);
     board_display_backlight_on();
@@ -170,4 +178,15 @@ bool display_lock(int timeout_ms)
 void display_unlock(void)
 {
     lvgl_port_unlock();
+}
+
+void display_refresh_now(void)
+{
+    if (!s_lvgl_disp) {
+        return;
+    }
+    if (lvgl_port_lock(100)) {
+        lv_refr_now(s_lvgl_disp);
+        lvgl_port_unlock();
+    }
 }

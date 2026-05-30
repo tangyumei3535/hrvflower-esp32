@@ -7,25 +7,31 @@
 
 #include <cstring>
 
+#include "esp_err.h"
 #include "esp_log.h"
 #include "nvs.h"
+#include "nvs_flash.h"
 
 static const char *TAG = "hrv_store";
 
 static constexpr const char *NVS_NS = "hrv";
 static constexpr const char *NVS_KEY = "status_json";
 
-bool hrv_status_store_has_data(void)
+bool hrv_status_store_init(void)
 {
-    nvs_handle_t nvs;
-    if (nvs_open(NVS_NS, NVS_READONLY, &nvs) != ESP_OK) {
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "Erasing NVS flash");
+        if (nvs_flash_erase() != ESP_OK) {
+            return false;
+        }
+        err = nvs_flash_init();
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "nvs_flash_init failed: %s", esp_err_to_name(err));
         return false;
     }
-
-    size_t len = 0;
-    esp_err_t err = nvs_get_blob(nvs, NVS_KEY, nullptr, &len);
-    nvs_close(nvs);
-    return err == ESP_OK && len > 0 && len < HRV_STATUS_JSON_MAX_LEN;
+    return true;
 }
 
 bool hrv_status_store_save(const char *json, size_t len)

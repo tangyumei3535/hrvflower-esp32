@@ -9,5 +9,5 @@
 
 esp_err_t mqtt_hrv_start(void);
 
-/** Block until a valid MQTT payload is applied or @p timeout_ms elapses. */
-bool mqtt_hrv_wait_activity(uint32_t timeout_ms);
+/** Block until @p idle_after_last_ms passes with no new valid MQTT payload. */
+void mqtt_hrv_active_window(uint32_t idle_after_last_ms);

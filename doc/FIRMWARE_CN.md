@@ -22,7 +22,7 @@
 
 ### 1.2 低功耗 + NVS 持久化
 
-- [x] **Deep sleep**：menuconfig **Low power** → 默认 **90 s**（1.5 min）活跃窗口后关背光进入 deep sleep（**无 RTC 定时**，可改）
+- [x] **Deep sleep**：menuconfig **Low power** → 默认 **最后一条有效 MQTT 后再空闲 90 s** 关背光进 deep sleep（**无 RTC 定时**，可改）
 - [x] **唤醒**：**GPIO16 EXT1** any-motion（默认，与 `ESP_ASTOM_S3` 一致）或侧面复位；**勿用 GPIO3**（32K）
 - [x] **IMU 入睡前配置**：`main/hrv_imu_wake.c`（`espressif/bmi270_sensor`，参考 esp-spot `any_wake_deepsleep`）
 - [x] 复位后全启动，显示 NVS 中最后一帧 JSON

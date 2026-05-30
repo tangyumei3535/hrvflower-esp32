@@ -52,6 +52,38 @@ static lv_color_t color_hex(uint32_t rgb)
     return lv_color_hex(rgb);
 }
 
+static bool load_status_from_nvs(hrv_status_t *out)
+{
+    if (!out) {
+        return false;
+    }
+
+    char json[HRV_STATUS_JSON_MAX_LEN];
+    size_t len = 0;
+    if (!hrv_status_store_load(json, sizeof(json), &len)) {
+        return false;
+    }
+    return hrv_parse_status_json(json, len, out);
+}
+
+static bool status_same(const hrv_status_t *a, const hrv_status_t *b)
+{
+    return a->hrv_ms == b->hrv_ms && a->temp_c == b->temp_c
+           && strcmp(a->time_str, b->time_str) == 0 && strcmp(a->weather, b->weather) == 0
+           && strcmp(a->city, b->city) == 0;
+}
+
+static void default_placeholder_status(hrv_status_t *out)
+{
+    *out = {
+        .hrv_ms = 0,
+        .time_str = "--",
+        .temp_c = TEMP_UNSET,
+        .weather = "",
+        .city = "",
+    };
+}
+
 static void configure_layout_metrics(void)
 {
     s_ui_compact = (s_screen_w <= COMPACT_SCREEN_MAX && s_screen_h <= COMPACT_SCREEN_MAX);
@@ -320,6 +352,15 @@ void hrv_ui_init(void)
 {
     hrv_ui_provisioning_end();
 
+    lv_obj_set_style_bg_color(lv_scr_act(), color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_COVER, 0);
+
+    hrv_status_t initial = {};
+    const bool from_nvs = load_status_from_nvs(&initial);
+    if (!from_nvs) {
+        default_placeholder_status(&initial);
+    }
+
     display_info_t info = {};
     display_get_info(&info);
     s_screen_w = info.width > 0 ? info.width : s_screen_w;
@@ -339,6 +380,7 @@ void hrv_ui_init(void)
     lv_obj_set_style_bg_color(s_root, color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(s_root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_root, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_root, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t *content = lv_obj_create(s_root);
     lv_obj_remove_style_all(content);
@@ -401,47 +443,15 @@ void hrv_ui_init(void)
     lv_obj_remove_style_all(s_flower_root);
     lv_obj_set_size(s_flower_root, s_panel_w, s_panel_h);
     lv_obj_set_pos(s_flower_root, panel_x, panel_y);
-    lv_obj_set_style_bg_opa(s_flower_root, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_color(s_flower_root, color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(s_flower_root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(s_flower_root, LV_OBJ_FLAG_SCROLLABLE);
 
-    if (!hrv_status_store_has_data()) {
-        hrv_status_t boot = {
-            .hrv_ms = 0,
-            .time_str = "--",
-            .temp_c = TEMP_UNSET,
-            .weather = "",
-            .city = "",
-        };
-        drawInterface(&boot);
-        ESP_LOGI(TAG, "No cached status in NVS (first run placeholder)");
-    } else {
-        hrv_ui_restore_from_nvs();
-    }
+    drawInterface(&initial);
+    lv_obj_remove_flag(s_root, LV_OBJ_FLAG_HIDDEN);
 
-    ESP_LOGI(TAG, "UI mode: %s (%dx%d)", s_ui_compact ? "compact" : "standard", s_screen_w, s_screen_h);
-}
-
-void hrv_ui_restore_from_nvs(void)
-{
-    if (!s_root) {
-        return;
-    }
-
-    char json[HRV_STATUS_JSON_MAX_LEN];
-    size_t len = 0;
-    if (!hrv_status_store_load(json, sizeof(json), &len)) {
-        ESP_LOGD(TAG, "No status to restore from NVS");
-        return;
-    }
-
-    hrv_status_t status = {};
-    if (!hrv_parse_status_json(json, len, &status)) {
-        ESP_LOGW(TAG, "Cached NVS JSON invalid, ignored");
-        return;
-    }
-
-    drawInterface(&status);
-    ESP_LOGI(TAG, "Restored UI from NVS (%u bytes)", (unsigned)len);
+    ESP_LOGI(TAG, "UI mode: %s (%dx%d)%s", s_ui_compact ? "compact" : "standard", s_screen_w,
+             s_screen_h, from_nvs ? ", from NVS" : ", placeholder");
 }
 
 bool hrv_ui_apply_payload(const char *json, size_t len)
@@ -463,6 +473,11 @@ bool hrv_ui_apply_payload(const char *json, size_t len)
 void drawInterface(const hrv_status_t *status)
 {
     if (!status || !s_root) {
+        return;
+    }
+
+    if (status_same(status, &s_last_status) && s_flower_root
+        && lv_obj_get_child_cnt(s_flower_root) > 0) {
         return;
     }
 

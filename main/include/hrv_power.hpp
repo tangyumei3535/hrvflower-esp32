@@ -8,6 +8,5 @@
 #include "esp_err.h"
 
 void hrv_power_log_wakeup_reason(void);
-esp_err_t hrv_power_prepare_deep_sleep(void);
 void hrv_power_display_off(void);
 void hrv_power_enter_deep_sleep(void);
