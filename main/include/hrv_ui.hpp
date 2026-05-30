@@ -35,3 +35,15 @@ bool hrv_parse_status_json(const char *json, size_t len, hrv_status_t *out);
  * @return true if JSON was valid and UI updated.
  */
 bool hrv_ui_apply_payload(const char *json, size_t len);
+
+/** Compact: bottom scroll line; standard: bottom-right time label. @p text NULL restores HRV/time. */
+void hrv_ui_set_ota_status(const char *text);
+
+/** Compact: top scroll line; standard: top-left weather label. @p text NULL restores weather/city. */
+void hrv_ui_set_wifi_status(const char *text);
+
+/**
+ * System info overlay (firmware version + battery). @p show false hides overlay.
+ * @p bat_percent -1 if ADC read failed; @p bat_mv battery millivolts when known.
+ */
+void hrv_ui_show_sysinfo(bool show, int bat_percent, int bat_mv, const char *version);

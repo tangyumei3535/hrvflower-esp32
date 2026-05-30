@@ -8,5 +8,8 @@ managed_components/
 .vscode/
 .DS_Store
 
-.skills/
-
+# Local skill mirror; version only project skills under .skills/.cursor/skills/
+.skills/*
+!.skills/.cursor/
+!.skills/.cursor/skills/
+!.skills/.cursor/skills/**

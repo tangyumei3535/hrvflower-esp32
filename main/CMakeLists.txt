@@ -26,6 +26,8 @@ idf_component_register(
         "hrv_power.cpp"
         "hrv_imu_wake.c"
         "hrv_ota.cpp"
+        "hrv_battery.c"
+        "hrv_user_btn.cpp"
         "board_display.c"
     INCLUDE_DIRS "include"
     REQUIRES
@@ -47,6 +49,8 @@ idf_component_register(
         esp_https_ota
         esp_http_client
         mbedtls
+        esp_adc
+        button
 )
 
 get_component_library("lvgl" LVGL_LIB)

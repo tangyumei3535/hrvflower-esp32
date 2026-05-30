@@ -13,6 +13,7 @@
 #include "hrv_power.hpp"
 #include "hrv_status_store.hpp"
 #include "hrv_ui.hpp"
+#include "hrv_user_btn.hpp"
 #include "mqtt_hrv.hpp"
 #include "wifi_connect.hpp"
 #include "esp_sleep.h"
@@ -54,6 +55,10 @@ extern "C" void app_main(void)
     }
 
     ESP_ERROR_CHECK(wifi_connect_init());
+
+    if (hrv_user_btn_start() != ESP_OK) {
+        ESP_LOGW(TAG, "USER button init failed");
+    }
 
 #if CONFIG_HRV_OTA_ENABLE
     if (strlen(CONFIG_HRV_OTA_DEFAULT_URL) > 0) {

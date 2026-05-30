@@ -5,14 +5,19 @@
  */
 #include "hrv_ota.hpp"
 
+#include <cstdio>
 #include <cstring>
 
 #include "cJSON.h"
+#include "display.hpp"
 #include "esp_app_format.h"
 #include "esp_check.h"
 #include "esp_https_ota.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "hrv_ui.hpp"
 #include "sdkconfig.h"
 
 #if CONFIG_HRV_OTA_ENABLE
@@ -31,16 +36,28 @@ void hrv_ota_log_running_version(void)
 
 #if CONFIG_HRV_OTA_ENABLE
 
+static void ota_ui_progress(esp_https_ota_handle_t handle, const char *phase)
+{
+    char line[40];
+    const int total = esp_https_ota_get_image_size(handle);
+    const int done = esp_https_ota_get_image_len_read(handle);
+
+    if (total > 0 && done >= 0) {
+        const int pct = (done * 100) / total;
+        snprintf(line, sizeof(line), "OTA %s %d%%", phase, pct);
+    } else {
+        snprintf(line, sizeof(line), "OTA %s...", phase);
+    }
+    hrv_ui_set_ota_status(line);
+}
+
 esp_err_t hrv_ota_apply_https_url(const char *url)
 {
     ESP_RETURN_ON_FALSE(url && url[0], ESP_ERR_INVALID_ARG, TAG, "empty URL");
 
     ESP_LOGI(TAG, "HTTPS OTA from %s", url);
+    hrv_ui_set_ota_status("OTA starting...");
 
-    /*
-     * GitHub Release URLs 302 to release-assets.githubusercontent.com with a long
-     * signed query string; default HTTP buffers (512 B) trigger "Out of buffer".
-     */
     esp_http_client_config_t http_cfg = {};
     http_cfg.url = url;
     http_cfg.timeout_ms = 120000;
@@ -61,13 +78,54 @@ esp_err_t hrv_ota_apply_https_url(const char *url)
     ota_cfg.max_http_request_size = 64 * 1024;
 #endif
 
-    const esp_err_t err = esp_https_ota(&ota_cfg);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "OTA success, rebooting");
-        esp_restart();
+    esp_https_ota_handle_t handle = nullptr;
+    esp_err_t err = esp_https_ota_begin(&ota_cfg, &handle);
+    if (err != ESP_OK) {
+        hrv_ui_set_ota_status("OTA failed");
+        ESP_LOGE(TAG, "OTA begin failed: %s", esp_err_to_name(err));
+        return err;
     }
-    ESP_LOGE(TAG, "OTA failed: %s", esp_err_to_name(err));
-    return err;
+
+    int last_pct = -1;
+    while (true) {
+        err = esp_https_ota_perform(handle);
+        if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
+            break;
+        }
+        const int total = esp_https_ota_get_image_size(handle);
+        const int done = esp_https_ota_get_image_len_read(handle);
+        if (total > 0) {
+            const int pct = (done * 100) / total;
+            if (pct != last_pct) {
+                last_pct = pct;
+                ota_ui_progress(handle, "DL");
+            }
+        } else if (last_pct < 0) {
+            last_pct = 0;
+            ota_ui_progress(handle, "DL");
+        }
+    }
+
+    if (err != ESP_OK) {
+        hrv_ui_set_ota_status("OTA failed");
+        esp_https_ota_abort(handle);
+        ESP_LOGE(TAG, "OTA perform failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    hrv_ui_set_ota_status("OTA verify...");
+    err = esp_https_ota_finish(handle);
+    if (err != ESP_OK) {
+        hrv_ui_set_ota_status("OTA failed");
+        ESP_LOGE(TAG, "OTA finish failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    hrv_ui_set_ota_status("OTA OK reboot");
+    ESP_LOGI(TAG, "OTA success, rebooting");
+    vTaskDelay(pdMS_TO_TICKS(400));
+    esp_restart();
+    return ESP_OK;
 }
 
 bool hrv_ota_try_mqtt_command(const char *json, size_t len)

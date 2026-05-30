@@ -9,5 +9,8 @@
 
 esp_err_t mqtt_hrv_start(void);
 
-/** Block until @p idle_after_last_ms passes with no new valid MQTT payload. */
+/** Reset deep-sleep idle countdown (valid MQTT payload or USER button). */
+void mqtt_hrv_kick_idle(void);
+
+/** Block until @p idle_after_last_ms passes with no activity that kicked idle. */
 void mqtt_hrv_active_window(uint32_t idle_after_last_ms);
