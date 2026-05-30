@@ -55,7 +55,9 @@ idf.py -p PORT flash
 
 或至少：`idf.py -p PORT partition-table flash` 后再 `flash` 应用。
 
-**发布固件**：`idf.py build` 后上传 `build/hrvflower_esp32.bin`（或带版本号的副本）到 HTTPS；设备需能访问该 URL。
+**发布固件**：`idf.py build` 后上传 `build/hrvflower_esp32.bin` 到 HTTPS；设备需能访问该 URL。
+
+**GitHub Release**：会 302 到很长的 `release-assets.githubusercontent.com` 链接，固件已加大 HTTP TX/RX 缓冲并启用分片下载；若 OTA 报 `Out of buffer`，请烧录含该修复的版本后再 OTA。
 
 ### 1.5 IMU 自动旋转屏幕
 

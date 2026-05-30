@@ -37,10 +37,16 @@ esp_err_t hrv_ota_apply_https_url(const char *url)
 
     ESP_LOGI(TAG, "HTTPS OTA from %s", url);
 
+    /*
+     * GitHub Release URLs 302 to release-assets.githubusercontent.com with a long
+     * signed query string; default HTTP buffers (512 B) trigger "Out of buffer".
+     */
     esp_http_client_config_t http_cfg = {};
     http_cfg.url = url;
-    http_cfg.timeout_ms = 60000;
+    http_cfg.timeout_ms = 120000;
     http_cfg.keep_alive_enable = true;
+    http_cfg.buffer_size = 4096;
+    http_cfg.buffer_size_tx = 2048;
 #if CONFIG_HRV_OTA_USE_CERT_BUNDLE
     http_cfg.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
@@ -50,6 +56,10 @@ esp_err_t hrv_ota_apply_https_url(const char *url)
 
     esp_https_ota_config_t ota_cfg = {};
     ota_cfg.http_config = &http_cfg;
+#if CONFIG_ESP_HTTPS_OTA_ENABLE_PARTIAL_DOWNLOAD
+    ota_cfg.partial_http_download = true;
+    ota_cfg.max_http_request_size = 64 * 1024;
+#endif
 
     const esp_err_t err = esp_https_ota(&ota_cfg);
     if (err == ESP_OK) {
