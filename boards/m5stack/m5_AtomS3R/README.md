@@ -17,7 +17,8 @@ Docs: [M5Stack AtomS3R](https://docs.m5stack.com/en/core/AtomS3R)
 | BMI270 INT1 | **16** (verify schematic) | RTC GPIO; M5 PinMap shows I2C only — do **not** use GPIO3 (32K) |
 | SPI MOSI / SCK / CS | 21 / 15 / 14 | |
 | LCD DC / RST | 42 / 48 | gc9a01 driver + GC9107 init |
-| USER_BUT | 41 | Active low — under the round display |
+| USER_BUT | 41 | Active low — under display; short press toggles **system page** (version + battery) |
+| Battery base BAT ADC | **8** | M5 [Atomic Battery Base](https://docs.m5stack.com/en/atom/Atomic%20Battery%20Base) (AtomS3R row); Atom-Lite uses GPIO33 |
 
 Backlight: `display_backlight` (LP5562, reg `0x0E`), initialized before `display_lcd`.
 

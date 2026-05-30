@@ -15,6 +15,7 @@
 #include "display.hpp"
 #include "esp_log.h"
 #include "lvgl.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "hrv_ui";
 
@@ -30,6 +31,10 @@ static int s_bottom_bar_h = 16;
 static float s_flower_scale = 1.0f;
 
 static lv_obj_t *s_root = nullptr;
+static lv_obj_t *s_sys_root = nullptr;
+static lv_obj_t *s_sys_lbl_ver = nullptr;
+static lv_obj_t *s_sys_lbl_bat = nullptr;
+static lv_obj_t *s_sys_bar = nullptr;
 static lv_obj_t *s_prov_root = nullptr;
 static lv_obj_t *s_prov_glow = nullptr;
 static lv_obj_t *s_flower_root = nullptr;
@@ -46,6 +51,7 @@ static int s_screen_h = 240;
 static hrv_status_t s_last_status = {};
 static bool s_bottom_show_hrv = true;
 static bool s_ota_status_active = false;
+static bool s_wifi_status_active = false;
 static lv_timer_t *s_bottom_timer = nullptr;
 
 static lv_color_t color_hex(uint32_t rgb)
@@ -209,6 +215,9 @@ static void style_scroll_label(lv_obj_t *label, uint32_t color, const lv_font_t 
 
 static void update_compact_top(const hrv_status_t *status)
 {
+    if (s_wifi_status_active) {
+        return;
+    }
     char top_line[96];
     const char *weather = status->weather[0] ? status->weather : "--";
     const char *city = status->city[0] ? status->city : "--";
@@ -282,26 +291,68 @@ void hrv_ui_set_ota_status(const char *text)
     display_unlock();
 }
 
+void hrv_ui_set_wifi_status(const char *text)
+{
+    if (!s_root) {
+        return;
+    }
+    if (!display_lock(100)) {
+        return;
+    }
+
+    if (!text || !text[0]) {
+        s_wifi_status_active = false;
+        if (s_ui_compact && s_lbl_top_scroll) {
+            display_info_t info = {};
+            const int w = display_get_info(&info) ? info.width : s_screen_w;
+            style_scroll_label(s_lbl_top_scroll, 0xB0B0B0, &lv_font_montserrat_10, w);
+            update_compact_top(&s_last_status);
+        } else if (!s_ui_compact) {
+            update_standard_labels(&s_last_status);
+        }
+        display_unlock();
+        return;
+    }
+
+    s_wifi_status_active = true;
+    if (s_ui_compact && s_lbl_top_scroll) {
+        lv_label_set_long_mode(s_lbl_top_scroll, LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_align(s_lbl_top_scroll, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(s_lbl_top_scroll, text);
+    } else if (s_lbl_weather) {
+        lv_label_set_text(s_lbl_weather, text);
+    }
+
+    if (lv_disp_t *disp = display_get_lvgl_disp()) {
+        lv_refr_now(disp);
+    }
+    display_unlock();
+}
+
 static void update_standard_labels(const hrv_status_t *status)
 {
-    char top_left[56];
-    const char *weather = status->weather[0] ? status->weather : "--";
-    if (status->temp_c != TEMP_UNSET) {
-        snprintf(top_left, sizeof(top_left), "%dC|%s", status->temp_c, weather);
-    } else {
-        snprintf(top_left, sizeof(top_left), "--C|%s", weather);
+    if (!s_wifi_status_active) {
+        char top_left[56];
+        const char *weather = status->weather[0] ? status->weather : "--";
+        if (status->temp_c != TEMP_UNSET) {
+            snprintf(top_left, sizeof(top_left), "%dC|%s", status->temp_c, weather);
+        } else {
+            snprintf(top_left, sizeof(top_left), "--C|%s", weather);
+        }
+        lv_label_set_text(s_lbl_weather, top_left);
     }
-    lv_label_set_text(s_lbl_weather, top_left);
     lv_label_set_text(s_lbl_city, status->city[0] ? status->city : "--");
 
-    char update_line[64];
-    snprintf(update_line, sizeof(update_line), "last update: %s",
-             status->time_str[0] ? status->time_str : "--");
-    lv_label_set_text(s_lbl_time, update_line);
+    if (!s_ota_status_active) {
+        char update_line[64];
+        snprintf(update_line, sizeof(update_line), "last update: %s",
+                 status->time_str[0] ? status->time_str : "--");
+        lv_label_set_text(s_lbl_time, update_line);
 
-    char hrv_line[24];
-    snprintf(hrv_line, sizeof(hrv_line), "HRV: %dms", status->hrv_ms);
-    lv_label_set_text(s_lbl_hrv, hrv_line);
+        char hrv_line[24];
+        snprintf(hrv_line, sizeof(hrv_line), "HRV: %dms", status->hrv_ms);
+        lv_label_set_text(s_lbl_hrv, hrv_line);
+    }
 }
 
 static void prov_breath_anim_cb(void *var, int32_t v)
@@ -494,8 +545,86 @@ void hrv_ui_init(void)
     drawInterface(&initial);
     lv_obj_remove_flag(s_root, LV_OBJ_FLAG_HIDDEN);
 
+#if CONFIG_HRV_USER_BTN_ENABLE
+    const lv_font_t *title_font =
+        s_ui_compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14;
+    const lv_font_t *body_font = s_ui_compact ? &lv_font_montserrat_10 : &lv_font_montserrat_12;
+
+    s_sys_root = lv_obj_create(lv_scr_act());
+    lv_obj_remove_style_all(s_sys_root);
+    lv_obj_set_size(s_sys_root, s_screen_w, s_screen_h);
+    lv_obj_set_style_bg_color(s_sys_root, color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(s_sys_root, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(s_sys_root, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_sys_root, LV_OBJ_FLAG_HIDDEN);
+
+    s_sys_lbl_ver = lv_label_create(s_sys_root);
+    lv_obj_set_style_text_color(s_sys_lbl_ver, color_hex(0xE0E0E0), 0);
+    lv_obj_set_style_text_font(s_sys_lbl_ver, title_font, 0);
+    lv_label_set_text(s_sys_lbl_ver, "v?");
+    lv_obj_align(s_sys_lbl_ver, LV_ALIGN_CENTER, 0, s_ui_compact ? -22 : -28);
+
+    s_sys_bar = lv_bar_create(s_sys_root);
+    lv_bar_set_range(s_sys_bar, 0, 100);
+    lv_obj_set_size(s_sys_bar, s_ui_compact ? 96 : 140, s_ui_compact ? 8 : 12);
+    lv_obj_set_style_bg_color(s_sys_bar, color_hex(0x303030), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_sys_bar, color_hex(0x4CAF50), LV_PART_INDICATOR);
+    lv_obj_align(s_sys_bar, LV_ALIGN_CENTER, 0, s_ui_compact ? 6 : 8);
+
+    s_sys_lbl_bat = lv_label_create(s_sys_root);
+    lv_obj_set_style_text_color(s_sys_lbl_bat, color_hex(0x9E9E9E), 0);
+    lv_obj_set_style_text_font(s_sys_lbl_bat, body_font, 0);
+    lv_label_set_text(s_sys_lbl_bat, "BAT --");
+    lv_obj_align(s_sys_lbl_bat, LV_ALIGN_CENTER, 0, s_ui_compact ? 22 : 30);
+#endif
+
     ESP_LOGI(TAG, "UI mode: %s (%dx%d)%s", s_ui_compact ? "compact" : "standard", s_screen_w,
              s_screen_h, from_nvs ? ", from NVS" : ", placeholder");
+}
+
+void hrv_ui_show_sysinfo(bool show, int bat_percent, int bat_mv, const char *version)
+{
+#if !CONFIG_HRV_USER_BTN_ENABLE
+    (void)show;
+    (void)bat_percent;
+    (void)bat_mv;
+    (void)version;
+    return;
+#else
+    if (!s_root || !s_sys_root) {
+        return;
+    }
+
+    if (!show) {
+        lv_obj_add_flag(s_sys_root, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_root, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
+    char ver_line[32];
+    snprintf(ver_line, sizeof(ver_line), "v%s", version && version[0] ? version : "?");
+    lv_label_set_text(s_sys_lbl_ver, ver_line);
+
+    char bat_line[48];
+    if (bat_percent >= 0) {
+        lv_bar_set_value(s_sys_bar, bat_percent, LV_ANIM_OFF);
+        const uint32_t color =
+            bat_percent > 20 ? 0x4CAF50 : (bat_percent > 10 ? 0xFFC107 : 0xF44336);
+        lv_obj_set_style_bg_color(s_sys_bar, color_hex(color), LV_PART_INDICATOR);
+        if (bat_mv > 0) {
+            snprintf(bat_line, sizeof(bat_line), "BAT %d%%  %dmV", bat_percent, bat_mv);
+        } else {
+            snprintf(bat_line, sizeof(bat_line), "BAT %d%%", bat_percent);
+        }
+    } else {
+        snprintf(bat_line, sizeof(bat_line), "BAT --");
+        lv_bar_set_value(s_sys_bar, 0, LV_ANIM_OFF);
+    }
+    lv_label_set_text(s_sys_lbl_bat, bat_line);
+
+    lv_obj_add_flag(s_root, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(s_sys_root, LV_OBJ_FLAG_HIDDEN);
+#endif
 }
 
 bool hrv_ui_apply_payload(const char *json, size_t len)

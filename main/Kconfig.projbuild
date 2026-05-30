@@ -87,8 +87,8 @@ menu "HRV Emotion Flower"
             default 90
             range 10 600
             help
-                Each valid MQTT payload resets this idle timer. Deep sleep starts
-                when no new payload arrives for this many seconds.
+                Each valid MQTT payload or USER button press resets this idle
+                timer. Deep sleep starts when neither occurs for this many seconds.
 
         config HRV_IMU_WAKE_ENABLE
             bool "BMI270 any-motion wake from deep sleep (AtomS3R)"
@@ -156,6 +156,40 @@ menu "HRV Emotion Flower"
                 If non-empty, run OTA once after Wi-Fi is up (before MQTT idle
                 window / deep sleep). Leave empty to upgrade only via MQTT
                 {"type":"ota","url":"https://..."}.
+
+    endmenu
+
+    menu "System info (USER button + battery ADC)"
+
+        config HRV_USER_BTN_ENABLE
+            bool "USER button toggles version + battery page"
+            default y
+            help
+                Screen-back button (AtomS3R GPIO41, active low). Each press toggles
+                between the HRV flower UI and a system info overlay. Battery ADC is
+                sampled only when entering the system page (no background polling).
+
+        config HRV_USER_BTN_GPIO
+            int "USER button GPIO"
+            depends on HRV_USER_BTN_ENABLE
+            default 41
+            range 0 48
+
+        config HRV_BATTERY_ADC_ENABLE
+            bool "Battery voltage via ADC on system page"
+            depends on HRV_USER_BTN_ENABLE
+            default y
+
+        config HRV_BATTERY_ADC_GPIO
+            int "Battery ADC GPIO (M5 Atomic Battery Base)"
+            depends on HRV_BATTERY_ADC_ENABLE
+            default 8
+            range 0 48
+            help
+                M5 Atomic Battery Base BAT ADC per product line:
+                AtomS3 / AtomS3-Lite / AtomS3R / AtomS3R-CAM / AtomS3R-M12: GPIO8.
+                Atom-Lite / Atom-Matrix: GPIO33.
+                See https://docs.m5stack.com/en/atom/Atomic%20Battery%20Base
 
     endmenu
 
