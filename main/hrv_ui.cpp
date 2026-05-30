@@ -45,6 +45,7 @@ static int s_screen_w = 284;
 static int s_screen_h = 240;
 static hrv_status_t s_last_status = {};
 static bool s_bottom_show_hrv = true;
+static bool s_ota_status_active = false;
 static lv_timer_t *s_bottom_timer = nullptr;
 
 static lv_color_t color_hex(uint32_t rgb)
@@ -219,6 +220,8 @@ static void update_compact_top(const hrv_status_t *status)
     lv_label_set_text(s_lbl_top_scroll, top_line);
 }
 
+static void update_standard_labels(const hrv_status_t *status);
+
 static void update_compact_bottom(const hrv_status_t *status)
 {
     char bottom_line[48];
@@ -234,8 +237,49 @@ static void update_compact_bottom(const hrv_status_t *status)
 static void bottom_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
+    if (s_ota_status_active) {
+        return;
+    }
     s_bottom_show_hrv = !s_bottom_show_hrv;
     update_compact_bottom(&s_last_status);
+}
+
+void hrv_ui_set_ota_status(const char *text)
+{
+    if (!s_root) {
+        return;
+    }
+    if (!display_lock(100)) {
+        return;
+    }
+
+    if (!text || !text[0]) {
+        s_ota_status_active = false;
+        if (s_ui_compact && s_lbl_bottom_scroll) {
+            display_info_t info = {};
+            const int w = display_get_info(&info) ? info.width : s_screen_w;
+            style_scroll_label(s_lbl_bottom_scroll, 0xE0E0E0, &lv_font_montserrat_10, w);
+            update_compact_bottom(&s_last_status);
+        } else if (!s_ui_compact) {
+            update_standard_labels(&s_last_status);
+        }
+        display_unlock();
+        return;
+    }
+
+    s_ota_status_active = true;
+    if (s_ui_compact && s_lbl_bottom_scroll) {
+        lv_label_set_long_mode(s_lbl_bottom_scroll, LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_align(s_lbl_bottom_scroll, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(s_lbl_bottom_scroll, text);
+    } else if (s_lbl_time) {
+        lv_label_set_text(s_lbl_time, text);
+    }
+
+    if (lv_disp_t *disp = display_get_lvgl_disp()) {
+        lv_refr_now(disp);
+    }
+    display_unlock();
 }
 
 static void update_standard_labels(const hrv_status_t *status)

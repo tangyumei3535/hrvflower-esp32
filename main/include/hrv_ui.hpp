@@ -35,3 +35,6 @@ bool hrv_parse_status_json(const char *json, size_t len, hrv_status_t *out);
  * @return true if JSON was valid and UI updated.
  */
 bool hrv_ui_apply_payload(const char *json, size_t len);
+
+/** Compact: bottom scroll line; standard: bottom-right time label. @p text NULL restores HRV/time. */
+void hrv_ui_set_ota_status(const char *text);
