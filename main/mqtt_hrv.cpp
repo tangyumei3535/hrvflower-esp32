@@ -37,14 +37,14 @@ static void configure_mqtt_credentials(esp_mqtt_client_config_t *mqtt_cfg)
 
 static void on_mqtt_payload(const char *data, int data_len)
 {
-    hrv_status_t status = {};
-    if (!hrv_parse_status_json(data, data_len, &status)) {
-        ESP_LOGW(TAG, "Ignored payload: %.*s", data_len, data);
+    if (data_len <= 0) {
         return;
     }
 
     if (display_lock(200)) {
-        drawInterface(&status);
+        if (!hrv_ui_apply_payload(data, (size_t)data_len)) {
+            ESP_LOGW(TAG, "Ignored payload: %.*s", data_len, data);
+        }
         display_unlock();
     }
 }

@@ -72,7 +72,7 @@
 | STA 连接 Wi-Fi | NVS 凭据 + 开机 captive portal；运行中断线由 `esp-wifi-connect` 后台重连 |
 | 巴法云 MQTT | 默认 `mqtt://bemfa.com:9501`；单设备 UID 鉴权或 AppID 多设备 |
 | 订阅主题 | 默认 `hrv001`（`BEMFA_MQTT_TOPIC` 可改） |
-| JSON 解析与 UI | **仅**收到有效 MQTT payload 时 `drawInterface()` |
+| JSON 解析与 UI | 有效 MQTT payload 写入 NVS（`hrv`/`status_json`）并刷新；断电/深睡唤醒/联网后自动显示缓存（首次无缓存为占位） |
 | 五阶段情绪花 | HRV 阈值 → 灰苞 / 暗红 / 橙 / 粉 / 金红+绿晕 |
 | 顶栏天气 + 底栏 HRV | 含温度、城市、更新时间 |
 | MQTT 断线重连 | ESP-MQTT 内部处理 |
@@ -85,7 +85,7 @@
 | 巴法云账号与主题 | 需自行注册 |
 | 触摸 / IMU / 语音 | 本示例未使用；IMU 旋转见 §1.5 |
 | 离线 / MQTT 状态 UI | 看不出是否在等待推送 |
-| 启动后 Retain 最后一帧 | 未专门处理 |
+| 启动后 MQTT Retain | 未用；改用 **NVS 最后一帧 JSON** |
 | MQTT TLS（9503） | 当前仅明文 9501 |
 | OTA / ESP32 主动请求 / BLE | 见 §1 路线图 |
 
@@ -93,7 +93,7 @@
 
 - **UID 未填**：MQTT 启动失败，屏保持占位（`--:--`、`HRV: 0ms`）。
 - **UID 已填、发送端未配**：串口 `MQTT connected, subscribe hrv001`，花不变。
-- **全流程打通**：每次 HTTP POST 成功，屏 **仅该时刻** 刷新一次。
+- **全流程打通**：每次 HTTP POST 成功，屏刷新并写入 NVS；下次上电先显示 NVS 缓存，新推送再覆盖。
 
 ### 2.4 串口监视
 

@@ -30,6 +30,7 @@ static constexpr int WIFI_UI_TASK_STACK = 4096;
 enum class WifiUiCmd : uint8_t {
     ProvShow,
     ProvHide,
+    RestoreStatus,
 };
 
 struct WifiUiMsg {
@@ -62,8 +63,10 @@ static void wifi_ui_task(void *arg)
         }
         if (msg.cmd == WifiUiCmd::ProvShow) {
             hrv_ui_provisioning_begin(msg.ap_ssid, msg.web_url);
-        } else {
+        } else if (msg.cmd == WifiUiCmd::ProvHide) {
             hrv_ui_provisioning_end();
+        } else {
+            hrv_ui_restore_from_nvs();
         }
         display_unlock();
     }
@@ -116,6 +119,17 @@ static void queue_prov_hide(void)
     }
 }
 
+static void queue_restore_status(void)
+{
+    if (!s_display_ready || !s_ui_queue) {
+        return;
+    }
+    WifiUiMsg msg = {.cmd = WifiUiCmd::RestoreStatus};
+    if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "UI queue full (restore)");
+    }
+}
+
 static void on_wifi_event(WifiEvent event, const std::string &data)
 {
     switch (event) {
@@ -125,6 +139,7 @@ static void on_wifi_event(WifiEvent event, const std::string &data)
         esp_timer_stop(s_connect_timer);
         xEventGroupSetBits(s_wifi_events, WIFI_EVT_CONNECTED);
         queue_prov_hide();
+        queue_restore_status();
         break;
     case WifiEvent::Disconnected:
         ESP_LOGW(TAG, "Disconnected");

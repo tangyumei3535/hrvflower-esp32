@@ -24,8 +24,17 @@ void hrv_ui_provisioning_end(void);
 /** Create black full-screen UI shell (call once after display_init). */
 void hrv_ui_init(void);
 
-/** Redraw entire interface; call only when a new valid MQTT payload arrives. */
+/** Redraw entire interface from parsed status. */
 void drawInterface(const hrv_status_t *status);
 
 /** Parse JSON payload from iOS Shortcut / Bemfa. */
 bool hrv_parse_status_json(const char *json, size_t len, hrv_status_t *out);
+
+/** Show last status from NVS if present (boot / after Wi-Fi up). No-op on first run. */
+void hrv_ui_restore_from_nvs(void);
+
+/**
+ * Parse payload, save JSON to NVS, and redraw UI.
+ * @return true if JSON was valid and UI updated.
+ */
+bool hrv_ui_apply_payload(const char *json, size_t len);

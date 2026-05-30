@@ -39,7 +39,7 @@ extern "C" void app_main(void)
 
     ESP_ERROR_CHECK(mqtt_hrv_start());
 
-    ESP_LOGI(TAG, "Running — UI updates on new MQTT payloads only");
+    ESP_LOGI(TAG, "Running — UI from NVS cache or new MQTT payloads");
 
     while (true) {
         /* MQTT runs in its own task; keep main loop idle for watchdog friendliness. */

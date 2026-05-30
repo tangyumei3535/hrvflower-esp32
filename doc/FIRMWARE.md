@@ -72,7 +72,7 @@ Related: [README.md](../README.md) · [main/Kconfig.projbuild](../main/Kconfig.p
 | Wi-Fi STA | NVS credentials + boot captive portal; runtime disconnect uses background reconnect |
 | Bemfa MQTT | Default `mqtt://bemfa.com:9501`; UID single-device or AppID multi-device |
 | Topic subscribe | Default `hrv001` (`BEMFA_MQTT_TOPIC` configurable) |
-| JSON → UI | `drawInterface()` **only** on valid MQTT payload |
+| JSON → UI | Valid MQTT JSON saved to NVS (`hrv`/`status_json`); restore on boot / Wi-Fi up; new payload replaces cache |
 | Five-stage flower | HRV thresholds → gray bud / dark red / orange / pink / gold+green |
 | Top weather + bottom HRV | temp, city, last update |
 | MQTT reconnect | handled by ESP-MQTT |

@@ -22,6 +22,7 @@ idf_component_register(
         "wifi_connect.cpp"
         "mqtt_hrv.cpp"
         "hrv_ui.cpp"
+        "hrv_status_store.cpp"
         "board_display.c"
     INCLUDE_DIRS "."
     REQUIRES
