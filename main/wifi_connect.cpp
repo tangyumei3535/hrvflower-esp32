@@ -21,7 +21,7 @@
 static const char *TAG = "wifi";
 
 static constexpr int CONNECT_TIMEOUT_SEC = 60;
-static constexpr int WIFI_UI_TASK_STACK = 4096;
+static constexpr int WIFI_UI_TASK_STACK = 6144;
 
 #define WIFI_EVT_CONNECTED       BIT0
 #define WIFI_EVT_CONFIG_EXIT     BIT1
@@ -30,12 +30,14 @@ static constexpr int WIFI_UI_TASK_STACK = 4096;
 enum class WifiUiCmd : uint8_t {
     ProvShow,
     ProvHide,
+    WifiStatus,
 };
 
 struct WifiUiMsg {
     WifiUiCmd cmd;
     char ap_ssid[33];
     char web_url[64];
+    char status_line[48];
 };
 
 static EventGroupHandle_t s_wifi_events;
@@ -54,6 +56,11 @@ static void wifi_ui_task(void *arg)
             continue;
         }
         if (!s_display_ready) {
+            continue;
+        }
+        if (msg.cmd == WifiUiCmd::WifiStatus) {
+            /* hrv_ui_set_wifi_status acquires LVGL lock internally */
+            hrv_ui_set_wifi_status(msg.status_line[0] ? msg.status_line : nullptr);
             continue;
         }
         if (!display_lock(-1)) {
@@ -123,6 +130,25 @@ static void queue_prov_hide(void)
     }
 }
 
+static void queue_wifi_status(const char *text)
+{
+    if (!s_display_ready) {
+        return;
+    }
+    ensure_wifi_ui_task();
+    if (!s_ui_queue) {
+        return;
+    }
+    WifiUiMsg msg{};
+    msg.cmd = WifiUiCmd::WifiStatus;
+    if (text && text[0]) {
+        strncpy(msg.status_line, text, sizeof(msg.status_line) - 1);
+    }
+    if (xQueueSend(s_ui_queue, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "UI queue full (wifi status)");
+    }
+}
+
 static void on_wifi_event(WifiEvent event, const std::string &data)
 {
     switch (event) {
@@ -132,21 +158,28 @@ static void on_wifi_event(WifiEvent event, const std::string &data)
         esp_timer_stop(s_connect_timer);
         xEventGroupSetBits(s_wifi_events, WIFI_EVT_CONNECTED);
         /* UI already drawn from NVS before Wi-Fi; redraw here caused a white flash. */
+        queue_wifi_status(nullptr);
         queue_prov_hide();
         break;
     case WifiEvent::Disconnected:
         ESP_LOGW(TAG, "Disconnected");
         s_connected = false;
         break;
-    case WifiEvent::Connecting:
+    case WifiEvent::Connecting: {
         ESP_LOGI(TAG, "Connecting to \"%s\"...", data.c_str());
+        char line[48];
+        snprintf(line, sizeof(line), "WiFi: %.28s", data.c_str());
+        queue_wifi_status(line);
         break;
+    }
     case WifiEvent::Scanning:
         ESP_LOGI(TAG, "Scanning for networks...");
+        queue_wifi_status("WiFi scanning...");
         break;
     case WifiEvent::ConfigModeEnter: {
         auto &wifi = WifiManager::GetInstance();
         ESP_LOGI(TAG, "Config AP: %s — %s", wifi.GetApSsid().c_str(), wifi.GetApWebUrl().c_str());
+        queue_wifi_status(nullptr);
         queue_prov_show(wifi.GetApSsid().c_str(), wifi.GetApWebUrl().c_str());
         break;
     }
@@ -228,6 +261,7 @@ static void try_wifi_connect(void)
     if (!have_saved) {
         ESP_LOGI(TAG, "No saved Wi-Fi credentials");
         start_config_ap_and_wait();
+        queue_wifi_status("WiFi connecting...");
         if (!start_station_and_wait(CONNECT_TIMEOUT_SEC)) {
             ESP_LOGE(TAG, "Failed to connect after provisioning");
         }
@@ -235,12 +269,14 @@ static void try_wifi_connect(void)
     }
 
     ESP_LOGI(TAG, "Trying saved Wi-Fi credentials");
+    queue_wifi_status("WiFi connecting...");
     if (start_station_and_wait(CONNECT_TIMEOUT_SEC)) {
         return;
     }
 
     ESP_LOGW(TAG, "Saved credentials failed, opening config AP");
     start_config_ap_and_wait();
+    queue_wifi_status("WiFi connecting...");
     if (!start_station_and_wait(CONNECT_TIMEOUT_SEC)) {
         ESP_LOGE(TAG, "Failed to connect after provisioning");
     }
