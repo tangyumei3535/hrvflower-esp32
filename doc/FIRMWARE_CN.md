@@ -20,11 +20,14 @@
 
 **已实现（2026-05-27）**：NVS 凭据优先 STA（60s 超时）→ 失败则 `HRVFlower-XXXX` SoftAP + `http://192.168.4.1` 网页配网；屏显热点名与呼吸动画；menuconfig SSID 仅在 NVS 为空时一次性写入。
 
-### 1.2 低功耗 + 定时 NVS 持久化
+### 1.2 低功耗 + NVS 持久化
 
-- [ ] **目标**：降低待机功耗，约 **每小时唤醒一次**
-- [ ] **行为**：唤醒后将最新 HRV 状态写入 NVS，再休眠或短暂连网
-- [ ] **涉及**：ESP-IDF sleep API、RTC 定时唤醒、LCD/MQTT 与休眠衔接
+- [x] **Deep sleep**：menuconfig **Low power** → 默认 **90 s**（1.5 min）活跃窗口后关背光进入 deep sleep（**无 RTC 定时**，可改）
+- [x] **唤醒**：**GPIO16 EXT1** any-motion（默认，与 `ESP_ASTOM_S3` 一致）或侧面复位；**勿用 GPIO3**（32K）
+- [x] **IMU 入睡前配置**：`main/hrv_imu_wake.c`（`espressif/bmi270_sensor`，参考 esp-spot `any_wake_deepsleep`）
+- [x] 复位后全启动，显示 NVS 中最后一帧 JSON
+- [ ] **Light sleep + GPIO41**：可选（屏下键即时唤醒，功耗高于 deep sleep）
+- [ ] 深睡期间保持 Wi-Fi 关联等（当前深睡后需复位再连网）
 
 ### 1.3 ESP32 端主动请求
 
@@ -72,7 +75,7 @@
 | STA 连接 Wi-Fi | NVS 凭据 + 开机 captive portal；运行中断线由 `esp-wifi-connect` 后台重连 |
 | 巴法云 MQTT | 默认 `mqtt://bemfa.com:9501`；单设备 UID 鉴权或 AppID 多设备 |
 | 订阅主题 | 默认 `hrv001`（`BEMFA_MQTT_TOPIC` 可改） |
-| JSON 解析与 UI | **仅**收到有效 MQTT payload 时 `drawInterface()` |
+| JSON 解析与 UI | 有效 MQTT payload 写入 NVS（`hrv`/`status_json`）并刷新；断电/深睡唤醒/联网后自动显示缓存（首次无缓存为占位） |
 | 五阶段情绪花 | HRV 阈值 → 灰苞 / 暗红 / 橙 / 粉 / 金红+绿晕 |
 | 顶栏天气 + 底栏 HRV | 含温度、城市、更新时间 |
 | MQTT 断线重连 | ESP-MQTT 内部处理 |
@@ -85,7 +88,7 @@
 | 巴法云账号与主题 | 需自行注册 |
 | 触摸 / IMU / 语音 | 本示例未使用；IMU 旋转见 §1.5 |
 | 离线 / MQTT 状态 UI | 看不出是否在等待推送 |
-| 启动后 Retain 最后一帧 | 未专门处理 |
+| 启动后 MQTT Retain | 未用；改用 **NVS 最后一帧 JSON** |
 | MQTT TLS（9503） | 当前仅明文 9501 |
 | OTA / ESP32 主动请求 / BLE | 见 §1 路线图 |
 
@@ -93,7 +96,7 @@
 
 - **UID 未填**：MQTT 启动失败，屏保持占位（`--:--`、`HRV: 0ms`）。
 - **UID 已填、发送端未配**：串口 `MQTT connected, subscribe hrv001`，花不变。
-- **全流程打通**：每次 HTTP POST 成功，屏 **仅该时刻** 刷新一次。
+- **全流程打通**：每次 HTTP POST 成功，屏刷新并写入 NVS；下次上电先显示 NVS 缓存，新推送再覆盖。
 
 ### 2.4 串口监视
 

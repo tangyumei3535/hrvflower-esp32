@@ -5,12 +5,15 @@
  */
 #pragma once
 
+#include "esp_err.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Optional board hook when LEDC backlight device is absent (e.g. AtomS3R LP5562). */
-void board_display_backlight_on(void);
+void hrv_imu_wake_on_boot(void);
+esp_err_t hrv_imu_wake_prepare(void);
+esp_err_t hrv_imu_wake_arm_for_deep_sleep(void);
 
 #ifdef __cplusplus
 }

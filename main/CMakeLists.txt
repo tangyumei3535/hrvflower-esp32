@@ -22,8 +22,11 @@ idf_component_register(
         "wifi_connect.cpp"
         "mqtt_hrv.cpp"
         "hrv_ui.cpp"
+        "hrv_status_store.cpp"
+        "hrv_power.cpp"
+        "hrv_imu_wake.c"
         "board_display.c"
-    INCLUDE_DIRS "."
+    INCLUDE_DIRS "include"
     REQUIRES
         nvs_flash
         esp_wifi
@@ -36,6 +39,9 @@ idf_component_register(
         esp_lvgl_port
         esp_driver_ledc
         esp-wifi-connect
+        bmi270_sensor
+        i2c_bus
+        driver
 )
 
 get_component_library("lvgl" LVGL_LIB)

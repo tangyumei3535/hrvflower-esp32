@@ -5,6 +5,8 @@
  */
 #include "hrv_ui.hpp"
 
+#include "hrv_status_store.hpp"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -402,16 +404,60 @@ void hrv_ui_init(void)
     lv_obj_set_style_bg_opa(s_flower_root, LV_OPA_TRANSP, 0);
     lv_obj_clear_flag(s_flower_root, LV_OBJ_FLAG_SCROLLABLE);
 
-    hrv_status_t boot = {
-        .hrv_ms = 0,
-        .time_str = "--",
-        .temp_c = TEMP_UNSET,
-        .weather = "",
-        .city = "",
-    };
-    drawInterface(&boot);
+    if (!hrv_status_store_has_data()) {
+        hrv_status_t boot = {
+            .hrv_ms = 0,
+            .time_str = "--",
+            .temp_c = TEMP_UNSET,
+            .weather = "",
+            .city = "",
+        };
+        drawInterface(&boot);
+        ESP_LOGI(TAG, "No cached status in NVS (first run placeholder)");
+    } else {
+        hrv_ui_restore_from_nvs();
+    }
 
     ESP_LOGI(TAG, "UI mode: %s (%dx%d)", s_ui_compact ? "compact" : "standard", s_screen_w, s_screen_h);
+}
+
+void hrv_ui_restore_from_nvs(void)
+{
+    if (!s_root) {
+        return;
+    }
+
+    char json[HRV_STATUS_JSON_MAX_LEN];
+    size_t len = 0;
+    if (!hrv_status_store_load(json, sizeof(json), &len)) {
+        ESP_LOGD(TAG, "No status to restore from NVS");
+        return;
+    }
+
+    hrv_status_t status = {};
+    if (!hrv_parse_status_json(json, len, &status)) {
+        ESP_LOGW(TAG, "Cached NVS JSON invalid, ignored");
+        return;
+    }
+
+    drawInterface(&status);
+    ESP_LOGI(TAG, "Restored UI from NVS (%u bytes)", (unsigned)len);
+}
+
+bool hrv_ui_apply_payload(const char *json, size_t len)
+{
+    if (!json || len == 0 || !s_root) {
+        return false;
+    }
+
+    hrv_status_t status = {};
+    if (!hrv_parse_status_json(json, len, &status)) {
+        return false;
+    }
+
+    hrv_status_store_save(json, len);
+    drawInterface(&status);
+    return true;
 }
 
 void drawInterface(const hrv_status_t *status)

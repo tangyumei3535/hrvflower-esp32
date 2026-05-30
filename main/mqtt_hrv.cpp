@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "hrv_ui.hpp"
 #include "mqtt_client.h"
@@ -19,6 +20,9 @@ static const char *TAG = "mqtt_hrv";
 
 static esp_mqtt_client_handle_t s_client;
 static char s_mqtt_client_id[64];
+static EventGroupHandle_t s_activity_events;
+
+#define MQTT_ACTIVITY_BIT BIT0
 
 static void configure_mqtt_credentials(esp_mqtt_client_config_t *mqtt_cfg)
 {
@@ -37,16 +41,31 @@ static void configure_mqtt_credentials(esp_mqtt_client_config_t *mqtt_cfg)
 
 static void on_mqtt_payload(const char *data, int data_len)
 {
-    hrv_status_t status = {};
-    if (!hrv_parse_status_json(data, data_len, &status)) {
-        ESP_LOGW(TAG, "Ignored payload: %.*s", data_len, data);
+    if (data_len <= 0) {
         return;
     }
 
     if (display_lock(200)) {
-        drawInterface(&status);
+        if (hrv_ui_apply_payload(data, (size_t)data_len)) {
+            if (s_activity_events) {
+                xEventGroupSetBits(s_activity_events, MQTT_ACTIVITY_BIT);
+            }
+        } else {
+            ESP_LOGW(TAG, "Ignored payload: %.*s", data_len, data);
+        }
         display_unlock();
     }
+}
+
+bool mqtt_hrv_wait_activity(uint32_t timeout_ms)
+{
+    if (!s_activity_events) {
+        vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+        return false;
+    }
+    const EventBits_t bits = xEventGroupWaitBits(
+        s_activity_events, MQTT_ACTIVITY_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(timeout_ms));
+    return (bits & MQTT_ACTIVITY_BIT) != 0;
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -95,6 +114,13 @@ esp_err_t mqtt_hrv_start(void)
     mqtt_cfg.session.keepalive = 60;
     mqtt_cfg.network.reconnect_timeout_ms = 5000;
     mqtt_cfg.network.timeout_ms = 10000;
+
+    if (!s_activity_events) {
+        s_activity_events = xEventGroupCreate();
+        if (!s_activity_events) {
+            return ESP_ERR_NO_MEM;
+        }
+    }
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!s_client) {

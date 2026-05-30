@@ -71,4 +71,51 @@ menu "HRV Emotion Flower"
         help
             Bemfa MQTT broker. Plain TCP port 9501 per official documentation.
 
+    menu "Low power (deep sleep)"
+
+        config HRV_LOW_POWER_ENABLE
+            bool "Enable deep sleep after active window"
+            default n
+            help
+                Stay awake for HRV_ACTIVE_WINDOW_SEC, then turn off backlight and
+                enter deep sleep. No RTC timer wake. NVS-cached UI is shown after wake.
+                AtomS3R: optional BMI270 any-motion (EXT1) or side reset.
+
+        config HRV_ACTIVE_WINDOW_SEC
+            int "Active window before deep sleep (seconds)"
+            depends on HRV_LOW_POWER_ENABLE
+            default 90
+            range 10 600
+            help
+                Run Wi-Fi/MQTT and accept payloads for this long after boot/reset,
+                then enter deep sleep.
+
+        config HRV_IMU_WAKE_ENABLE
+            bool "BMI270 any-motion wake from deep sleep (AtomS3R)"
+            depends on HRV_LOW_POWER_ENABLE
+            default y
+            help
+                Configure on-board BMI270 (Toy firmware) for any-motion on INT1.
+                Wake via ESP32-S3 EXT1 on RTC GPIO (default 16). Side reset (EN) always wakes.
+
+        config HRV_IMU_INT_GPIO
+            int "BMI270 INT1 GPIO (RTC 0-21; NOT GPIO3=32K crystal)"
+            depends on HRV_IMU_WAKE_ENABLE
+            default 16
+            range 0 21
+
+        config HRV_IMU_I2C_SDA_GPIO
+            int "BMI270 I2C SDA GPIO"
+            depends on HRV_IMU_WAKE_ENABLE
+            default 45
+            range 0 48
+
+        config HRV_IMU_I2C_SCL_GPIO
+            int "BMI270 I2C SCL GPIO"
+            depends on HRV_IMU_WAKE_ENABLE
+            default 0
+            range 0 48
+
+    endmenu
+
 endmenu
