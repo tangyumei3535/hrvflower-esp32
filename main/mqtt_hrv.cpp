@@ -23,11 +23,11 @@ static const char *TAG = "mqtt_hrv";
 
 static esp_mqtt_client_handle_t s_client;
 static char s_mqtt_client_id[64];
-static std::atomic<int64_t> s_last_msg_us{0};
+static std::atomic<int64_t> s_last_activity_us{0};
 
-static void touch_last_msg_time(void)
+void mqtt_hrv_kick_idle(void)
 {
-    s_last_msg_us.store(esp_timer_get_time(), std::memory_order_relaxed);
+    s_last_activity_us.store(esp_timer_get_time(), std::memory_order_relaxed);
 }
 
 static void configure_mqtt_credentials(esp_mqtt_client_config_t *mqtt_cfg)
@@ -57,7 +57,7 @@ static void on_mqtt_payload(const char *data, int data_len)
 
     if (display_lock(200)) {
         if (hrv_ui_apply_payload(data, (size_t)data_len)) {
-            touch_last_msg_time();
+            mqtt_hrv_kick_idle();
         } else {
             ESP_LOGW(TAG, "Ignored payload: %.*s", data_len, data);
         }
@@ -69,15 +69,15 @@ void mqtt_hrv_active_window(uint32_t idle_after_last_ms)
 {
     const int64_t idle_us = (int64_t)idle_after_last_ms * 1000;
 
-    touch_last_msg_time();
+    mqtt_hrv_kick_idle();
 
 #if CONFIG_HRV_LOW_POWER_ENABLE
-    ESP_LOGI(TAG, "Deep sleep after %lu s idle since last valid MQTT",
+    ESP_LOGI(TAG, "Deep sleep after %lu s idle (MQTT or USER button)",
              (unsigned long)(idle_after_last_ms / 1000U));
 #endif
 
     while (true) {
-        const int64_t last_us = s_last_msg_us.load(std::memory_order_relaxed);
+        const int64_t last_us = s_last_activity_us.load(std::memory_order_relaxed);
         const int64_t elapsed_us = esp_timer_get_time() - last_us;
         if (elapsed_us >= idle_us) {
             break;
